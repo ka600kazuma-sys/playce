@@ -58,3 +58,10 @@ export async function replyAction(token: string, fd: FormData) {
   if (r === "ok") back("sent=1");
   back(`err=${encodeURIComponent(r === "full" ? "このスレッドの投稿数の上限に達しました。新しいメッセージとして送ってください。" : r === "not_found" ? "スレッドが見つかりません。" : "送信できませんでした。時間をおいて再度お試しください。")}`);
 }
+
+// 共有の端末向け: このブラウザに保存された「過去のメッセージ」の一覧(Cookie)を消す。メッセージ自体は削除されない。
+export async function forgetMessagesAction() {
+  const jar = await cookies();
+  for (const c of jar.getAll()) if (c.name.startsWith("msg_")) jar.delete(c.name);
+  redirect("/contact");
+}

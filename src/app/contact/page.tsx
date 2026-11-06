@@ -5,7 +5,7 @@ import { getThreadSummary } from "@/lib/repo/messages";
 import { newFormToken } from "@/lib/repo/formtoken";
 import { THREAD_STATUS_LABEL, MAX_BODY, type ThreadView } from "@/lib/domain/messages";
 import { dateText, timeText } from "@/lib/format";
-import { sendMessageAction } from "./actions";
+import { forgetMessagesAction, sendMessageAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "主催者への連絡 | PLAYCE", robots: { index: false, follow: false } };
@@ -33,6 +33,10 @@ export default async function ContactPage({ searchParams }: { searchParams: Prom
               <span className="font-semibold">{v.eventTitle ?? "（イベント指定なし）"} {v.unreadByParticipant && <span className="ml-1 rounded-full bg-[#fde7e9] px-2 py-0.5 text-xs text-[#9b1c27]">返信があります</span>}</span>
               <span className="text-sm text-soft">{dateText(new Date(v.updatedAt).toISOString())} {timeText(new Date(v.updatedAt).toISOString())} ・ {THREAD_STATUS_LABEL[v.status]}</span>
             </Link></li>))}</ul>
+          <form action={forgetMessagesAction}>
+            <button className="rounded border border-line px-3 py-2 text-sm text-soft">このブラウザの履歴を消す(共有の端末向け)</button>
+            <p className="mt-1 text-xs text-soft">一覧を消すだけで、送ったメッセージは削除されません。専用ページのURLを控えていれば、あとで開けます。</p>
+          </form>
         </section>
       )}
       <form action={sendMessageAction} className="space-y-3 rounded-2xl border border-line p-4">
