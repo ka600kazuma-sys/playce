@@ -1,4 +1,4 @@
-import { EVENT_STATUS, SPORTS, SPORT_LABEL, STATUS_LABEL, type EventInput } from "@/lib/domain/events";
+import { STATUS_ORDER, SPORTS, SPORT_LABEL, STATUS_LABEL, type EventInput } from "@/lib/domain/events";
 import { toLocalInput } from "@/lib/format";
 
 const f = "mt-1 block w-full rounded border p-3 text-base";
@@ -21,9 +21,10 @@ export function EventForm({ action, event, withRepeat }: { action: (fd: FormData
       </div>
       <label className="block text-sm font-semibold">持ち物<textarea name="belongings" maxLength={500} defaultValue={event?.belongings} className={f} rows={2} /></label>
       <label className="block text-sm font-semibold">注意事項<textarea name="notes" maxLength={1000} defaultValue={event?.notes} className={f} rows={3} /></label>
-      <label className="block text-sm font-semibold">状態
-        <select name="status" defaultValue={event?.status ?? "draft"} className={f}>{EVENT_STATUS.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}</select>
+      <label className="block text-sm font-semibold">公開状態
+        <select name="status" defaultValue={event?.status ?? "published"} className={f}>{STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}</select>
       </label>
+      <p className="text-xs text-gray-500">「公開中」にすると、保存した時点で、公開カレンダーに表示され、参加申込を受け付けます。準備中のときは「下書き」にしてください。</p>
       {withRepeat && (
         <label className="block text-sm font-semibold">毎週くり返す回数（0＝1回のみ・最大26）
           <input type="number" name="repeatWeeks" min={0} max={26} defaultValue={0} className={f} />

@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/firebase/admin";
-import { eventSchema, type EventInput, type PublicEvent } from "@/lib/domain/events";
+import { deletionBlock, eventSchema, type DeletionInfo, type EventInput, type PublicEvent } from "@/lib/domain/events";
 import { RECONFIRM_STATUSES, needsReconfirm } from "@/lib/domain/registration";
 
 const col = () => db().collection("events");
@@ -72,4 +72,33 @@ export async function updateEvent(id: string, input: EventInput, by: string): Pr
     tx.set(ref.collection("history").doc(), { at: Date.now(), by, action: changes.status ? "status" : "update", changes, ...(reschedule ? { reconfirmRequested: targets.length } : {}) });
     return "ok";
   });
+}
+
+// ---- 削除(管理者専用。呼び出し側で requireAdmin() を済ませること) ----
+export async function getDeletionInfo(id: string): Promise<DeletionInfo | null> {
+  if (!validId(id)) return null;
+  const ref = col().doc(id);
+  if (!(await ref.get()).exists) return null;
+  const n = async (q: FirebaseFirestore.Query) => (await q.count().get()).data().count;
+  const [registrations, activeRegistrations, payments, expenses, acct] = await Promise.all([
+    n(ref.collection("registrations")),
+    n(ref.collection("registrations").where("status", "in", ["confirmed", "waitlisted", "offered"])),
+    n(ref.collection("payments")), n(ref.collection("expenses")),
+    db().collection("accounting").doc(id).get(),
+  ]);
+  return { registrations, activeRegistrations, payments, expenses, accountingClosed: acct.exists && (acct.data() as { closed?: boolean }).closed === true };
+}
+
+// 削除。申込・履歴などの下位データも消す。実行した記録(誰が・いつ・件数)は eventDeletions に残す。
+export async function deleteEvent(id: string, by: string): Promise<"ok" | "not_found" | "blocked"> {
+  const info = await getDeletionInfo(id);
+  if (!info) return "not_found";
+  if (deletionBlock(info)) return "blocked";
+  const ref = col().doc(id);
+  const cur = await ref.get();
+  const d = cur.data() as { title?: string; startAt?: string };
+  await db().collection("eventDeletions").doc(`${id}_${Date.now()}`).set({ eventId: id, title: d.title ?? "", startAt: d.startAt ?? "", by, at: Date.now(), registrations: info.registrations, activeRegistrations: info.activeRegistrations });
+  await db().recursiveDelete(ref);
+  await db().collection("accounting").doc(id).delete();
+  return "ok";
 }

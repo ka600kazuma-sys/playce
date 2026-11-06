@@ -12,6 +12,7 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
   const P = await import("@/lib/repo/reception");
   const A = await import("@/lib/repo/accounting");
   const M = await import("@/lib/repo/messages");
+  const AE = await import("@/lib/repo/adminEvents");
   const { hashSecret } = await import("@/lib/domain/registration");
   const threads = [];
 
@@ -28,7 +29,7 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
   const regsOf = async (id) => (await P.listRegs(id));
   const count = (rows, st) => rows.filter((r) => r.status === st).reduce((n, r) => n + r.partySize, 0);
 
-  after(async () => { for (const id of threads) await db().recursiveDelete(db().collection("messages").doc(id)); for (const id of created) { await db().recursiveDelete(db().collection("events").doc(id)); await db().collection("accounting").doc(id).delete().catch(() => {}); } });
+  after(async () => { for (const id of created) { const q = await db().collection("eventDeletions").where("eventId", "==", id).get(); for (const d of q.docs) await d.ref.delete(); } for (const id of threads) await db().recursiveDelete(db().collection("messages").doc(id)); for (const id of created) { await db().recursiveDelete(db().collection("events").doc(id)); await db().collection("accounting").doc(id).delete().catch(() => {}); } });
 
   test("B8 同時申込8件・定員3: 確定は3人を超えず、残りはキャンセル待ち", { timeout: 120_000 }, async () => {
     const id = await mkEvent(3);
@@ -133,6 +134,31 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     const fin = await M.getThreadByToken(a.token); assert.equal(fin.posts.length, 8); assert.equal(fin.thread.postCount, 8);
     assert.equal(await M.addOrganizerPost("zz" + "0".repeat(62), "x"), "not_found");
     assert.equal(await M.setThreadStatus("nope", "done"), "not_found");
+  });
+
+  test("イベント削除: 申込だけなら削除でき(下位データも消え、記録が残る)、入金・経費・会計確定があれば拒否、存在しない/不正なIDは何もしない", { timeout: 120_000 }, async () => {
+    // 申込だけのイベント → 削除できる
+    const e1 = await mkEvent(null, 500); const r = await apply(e1, "d1"); assert.ok(r.ok);
+    const info = await AE.getDeletionInfo(e1); assert.deepEqual([info.registrations, info.activeRegistrations, info.payments, info.expenses], [1, 1, 0, 0]);
+    assert.equal(await AE.deleteEvent(e1, "test@example.com"), "ok");
+    assert.equal((await db().collection("events").doc(e1).get()).exists, false);
+    assert.equal((await db().collection("events").doc(e1).collection("registrations").get()).size, 0);   // 下位データも消える
+    assert.equal(await R.getMyRegistration(e1, r.token), null);                                          // 申込ページも開けなくなる
+    const log = await db().collection("eventDeletions").where("eventId", "==", e1).get();
+    assert.equal(log.size, 1); assert.equal(log.docs[0].data().by, "test@example.com"); assert.equal(log.docs[0].data().registrations, 1);
+    assert.equal(await AE.deleteEvent(e1, "test@example.com"), "not_found");                              // 二重に削除しても何も起きない
+    // 入金があるイベント → 拒否(データは残る)
+    const e2 = await mkEvent(null, 500); await apply(e2, "d2"); const regId = (await regsOf(e2))[0].id;
+    assert.equal(await P.recordPayment(e2, `k${randomBytes(8).toString("hex")}`, [{ regId, amountYen: 500 }], "test"), "ok");
+    assert.equal(await AE.deleteEvent(e2, "test"), "blocked");
+    assert.equal((await db().collection("events").doc(e2).get()).exists, true); assert.equal((await regsOf(e2)).length, 1);
+    // 経費があるイベント → 拒否
+    const e3 = await mkEvent(null, 0);
+    assert.equal(await A.addExpense(e3, `e${randomBytes(8).toString("hex")}`, { category: "会場費", description: "t", amountYen: 100 }, "test"), "ok");
+    assert.equal(await AE.deleteEvent(e3, "test"), "blocked"); assert.equal((await db().collection("events").doc(e3).get()).exists, true);
+    // 不正なID・存在しないID
+    assert.equal(await AE.deleteEvent("../x", "test"), "not_found"); assert.equal(await AE.deleteEvent("zz_none_" + randomBytes(4).toString("hex"), "test"), "not_found");
+    assert.equal(await AE.getDeletionInfo("a/b"), null);
   });
 }
 

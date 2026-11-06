@@ -33,3 +33,14 @@ export const STATUS_LABEL: Record<EventStatus, string> = {
 export type PublicEvent = EventInput & { id: string };
 
 export const PUBLIC_STATUSES: readonly EventStatus[] = ["published", "cancelled", "postponed"];
+
+// 公開状態の並び順(フォームの選択肢)。「公開中」を一番上にする。
+export const STATUS_ORDER: readonly EventStatus[] = ["published", "draft", "hidden", "postponed", "cancelled"];
+
+// イベント削除の安全制限。入金・経費の記録(会計の正本)があるイベントは削除できない(「非表示」にする)。
+export type DeletionInfo = { registrations: number; activeRegistrations: number; payments: number; expenses: number; accountingClosed: boolean };
+export function deletionBlock(i: Pick<DeletionInfo, "payments" | "expenses" | "accountingClosed">): string | null {
+  if (i.payments > 0 || i.expenses > 0 || i.accountingClosed)
+    return "入金・経費・会計確定の記録があるため、削除できません。会計の記録を守るためです。参加者に見せたくない場合は、公開状態を「非表示」にしてください。";
+  return null;
+}

@@ -28,6 +28,7 @@ export default async function EditEvent({ params, searchParams }: { params: Prom
       <Link href={`/admin/events/${id}/print`} className="block rounded border p-3 text-center font-semibold">印刷用の受付名簿</Link>
       <EventForm action={updateEventAction.bind(null, id)} event={e} />
       <form action={duplicateEventAction.bind(null, id)}><button className="w-full rounded border p-3">このイベントを複製（下書き）</button></form>
+      <Link href={`/admin/events/${id}/delete`} className="block rounded border border-red-300 p-3 text-center text-sm text-red-700">このイベントを削除する</Link>
       <section className="rounded border p-3 text-sm">
         <h2 className="mb-2 font-semibold">変更履歴</h2>
         {history.length === 0 && <p className="text-gray-500">履歴はありません。</p>}

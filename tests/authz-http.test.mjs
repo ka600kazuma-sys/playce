@@ -18,7 +18,7 @@ before(async () => {
 }, { timeout: 90_000 });
 after(() => { proc?.kill("SIGTERM"); });
 
-const ADMIN_PAGES = ["/admin", "/admin/events", "/admin/events/new", "/admin/events/abc", "/admin/events/abc/reception", "/admin/events/abc/accounting", "/admin/events/abc/print", "/admin/messages", "/admin/messages/" + "a".repeat(64)];
+const ADMIN_PAGES = ["/admin", "/admin/events", "/admin/events/new", "/admin/events/abc", "/admin/events/abc/reception", "/admin/events/abc/accounting", "/admin/events/abc/print", "/admin/events/abc/delete", "/admin/messages", "/admin/messages/" + "a".repeat(64)];
 
 test("A1/A5 未ログイン・偽Cookieでは、管理画面をどのURLでもログイン画面へ戻す(フロント経由なしで直接アクセス)", { timeout: 120_000 }, async () => {
   for (const p of ADMIN_PAGES) {

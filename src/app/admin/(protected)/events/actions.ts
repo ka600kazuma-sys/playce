@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/session";
 import { eventSchema, type EventInput } from "@/lib/domain/events";
 import { fromLocalInput } from "@/lib/format";
-import { createEvents, getEventAny, updateEvent } from "@/lib/repo/adminEvents";
+import { createEvents, deleteEvent, getEventAny, updateEvent } from "@/lib/repo/adminEvents";
 
 const txt = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 
@@ -60,4 +60,15 @@ export async function duplicateEventAction(id: string) {
   void _omit; void _s;
   const [newId] = await createEvents([{ ...rest, title: `${cur.title}（コピー）`, status: "draft" }], admin.email);
   redirect(`/admin/events/${newId}?done=1`);
+}
+
+// 削除。確認のチェックがなければ実行しない。入金・経費・会計確定の記録があるイベントは、サーバー側でも拒否する。
+export async function deleteEventAction(id: string, fd: FormData) {
+  const admin = await requireAdmin();
+  if (fd.get("confirm") !== "on") return back(`/admin/events/${id}/delete`, "「元に戻せないことを理解しました」にチェックを入れてください。");
+  let r;
+  try { r = await deleteEvent(id, admin.email); } catch { return back(`/admin/events/${id}/delete`, "削除できませんでした。時間をおいて再度お試しください。"); }
+  if (r === "blocked") return back(`/admin/events/${id}/delete`, "入金・経費・会計確定の記録があるため、削除できません。");
+  if (r === "not_found") return back("/admin/events", "イベントが見つかりません。");
+  redirect("/admin/events?deleted=1");
 }
