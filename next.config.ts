@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
         { key: "X-Frame-Options", value: "DENY" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       ] },
+      // メッセージのスレッドURL(参加者専用)も同様に、Referer 経由で漏らさず、キャッシュしない
+      { source: "/contact/t/:token", headers: [
+        { key: "Referrer-Policy", value: "no-referrer" },
+        { key: "Cache-Control", value: "no-store" },
+      ] },
       // 個別管理URLを Referer 経由で外部に漏らさない
       { source: "/events/:id/r/:token", headers: [
         { key: "Referrer-Policy", value: "no-referrer" },

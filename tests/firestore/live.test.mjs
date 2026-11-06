@@ -11,6 +11,9 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
   const R = await import("@/lib/repo/registrations");
   const P = await import("@/lib/repo/reception");
   const A = await import("@/lib/repo/accounting");
+  const M = await import("@/lib/repo/messages");
+  const { hashSecret } = await import("@/lib/domain/registration");
+  const threads = [];
 
   const created = [];
   const mkEvent = async (capacity, feeYen = 500) => {
@@ -25,7 +28,7 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
   const regsOf = async (id) => (await P.listRegs(id));
   const count = (rows, st) => rows.filter((r) => r.status === st).reduce((n, r) => n + r.partySize, 0);
 
-  after(async () => { for (const id of created) { await db().recursiveDelete(db().collection("events").doc(id)); await db().collection("accounting").doc(id).delete().catch(() => {}); } });
+  after(async () => { for (const id of threads) await db().recursiveDelete(db().collection("messages").doc(id)); for (const id of created) { await db().recursiveDelete(db().collection("events").doc(id)); await db().collection("accounting").doc(id).delete().catch(() => {}); } });
 
   test("B8 同時申込8件・定員3: 確定は3人を超えず、残りはキャンセル待ち", { timeout: 120_000 }, async () => {
     const id = await mkEvent(3);
@@ -98,4 +101,38 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal(await A.addExpense(id, `e${randomBytes(8).toString("hex")}`, { category: "会場費", description: "確定後", amountYen: 100 }, "test"), "closed");
     assert.equal(await P.recordPayment(id, `k${randomBytes(8).toString("hex")}`, [{ regId, amountYen: 100 }], "test"), "closed");
   });
+
+  test("メッセージ: 送信→主催者の既読/返信/状態、他人のトークンでは読めない、同時投稿でも件数が合う", { timeout: 120_000 }, async () => {
+    const a = await M.createThread({ nickname: "zz_test_A", body: "質問Aです" }, null), b = await M.createThread({ nickname: "zz_test_B", body: "質問Bです" }, "テストイベント");
+    threads.push(hashSecret(a.token), hashSecret(b.token));
+    const ta = await M.getThreadByToken(a.token), tb = await M.getThreadByToken(b.token);
+    assert.equal(ta.posts.length, 1); assert.equal(ta.posts[0].body, "質問Aです"); assert.equal(tb.thread.eventTitle, "テストイベント");
+    assert.ok(!JSON.stringify(ta).includes("質問Bです"));                       // 他人のスレッドの内容は含まれない
+    assert.equal(await M.getThreadByToken(randomBytes(32).toString("base64url")), null); // 推測
+    assert.equal(await M.getThreadByToken("short"), null);
+    assert.equal(await M.addParticipantPost(randomBytes(32).toString("base64url"), "x"), "not_found");
+    // 主催者側: 未読が付いており、開くと既読になる。返信すると「対応中」+参加者に未読の返信
+    assert.ok((await M.unreadCount()) >= 2);
+    const idA = hashSecret(a.token);
+    assert.equal((await M.listThreads()).find((t) => t.id === idA).unreadByAdmin, true);
+    assert.equal((await M.openThreadAsAdmin(idA)).thread.unreadByAdmin, false);
+    assert.equal((await M.listThreads()).find((t) => t.id === idA).unreadByAdmin, false);
+    assert.equal(await M.addOrganizerPost(idA, "回答します"), "ok");
+    let l = (await M.listThreads()).find((t) => t.id === idA);
+    assert.deepEqual([l.status, l.unreadByParticipant, l.lastFrom, l.postCount], ["inprogress", true, "organizer", 2]);
+    const seen = await M.getThreadByToken(a.token);                              // 参加者が開く → 既読
+    assert.deepEqual(seen.posts.map((p) => p.from), ["participant", "organizer"]);
+    assert.equal((await M.listThreads()).find((t) => t.id === idA).unreadByParticipant, false);
+    // 完了→参加者の再投稿で未対応に戻る
+    assert.equal(await M.setThreadStatus(idA, "done"), "ok");
+    assert.equal(await M.addParticipantPost(a.token, "追加の質問"), "ok");
+    l = (await M.listThreads()).find((t) => t.id === idA); assert.deepEqual([l.status, l.unreadByAdmin], ["open", true]);
+    // 同時に5件投稿しても、全て残り件数が合う
+    const out = await Promise.all(Array.from({ length: 5 }, (_, i) => M.addParticipantPost(a.token, `同時${i}`)));
+    assert.ok(out.every((x) => x === "ok"));
+    const fin = await M.getThreadByToken(a.token); assert.equal(fin.posts.length, 8); assert.equal(fin.thread.postCount, 8);
+    assert.equal(await M.addOrganizerPost("zz" + "0".repeat(62), "x"), "not_found");
+    assert.equal(await M.setThreadStatus("nope", "done"), "not_found");
+  });
 }
+

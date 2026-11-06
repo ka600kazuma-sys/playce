@@ -8,6 +8,7 @@ export const SCOPES = {
   apply: { limit: 5, windowMs: 10 * 60 * 1000 },   // 申込
   manage: { limit: 30, windowMs: 10 * 60 * 1000 }, // 管理URLの閲覧・変更(トークン総当たり対策を兼ねる)
   login: { limit: 10, windowMs: 10 * 60 * 1000 },  // 主催者ログイン
+  contact: { limit: 5, windowMs: 10 * 60 * 1000 }, // 主催者へのメッセージ送信・返信
 } as const;
 export type Scope = keyof typeof SCOPES;
 

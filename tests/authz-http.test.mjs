@@ -18,7 +18,7 @@ before(async () => {
 }, { timeout: 90_000 });
 after(() => { proc?.kill("SIGTERM"); });
 
-const ADMIN_PAGES = ["/admin", "/admin/events", "/admin/events/new", "/admin/events/abc", "/admin/events/abc/reception", "/admin/events/abc/accounting", "/admin/events/abc/print"];
+const ADMIN_PAGES = ["/admin", "/admin/events", "/admin/events/new", "/admin/events/abc", "/admin/events/abc/reception", "/admin/events/abc/accounting", "/admin/events/abc/print", "/admin/messages", "/admin/messages/" + "a".repeat(64)];
 
 test("A1/A5 未ログイン・偽Cookieでは、管理画面をどのURLでもログイン画面へ戻す(フロント経由なしで直接アクセス)", { timeout: 120_000 }, async () => {
   for (const p of ADMIN_PAGES) {
@@ -58,4 +58,12 @@ test("A2/A5 セッション発行API: Originなし・別オリジンは403、不
 test("公開画面は未ログインで見られ、管理者向けの項目(主催者メニュー・参加者名簿)を含まない", { timeout: 60_000 }, async () => {
   const r = await get("/"); assert.equal(r.status, 200);
   const t = await r.text(); assert.ok(t.includes("主催者ログイン")); assert.ok(!t.includes("主催者メニュー")); assert.ok(!t.includes("当日受付"));
+});
+
+test("メッセージ: 参加者向けの送信画面は未ログインで開け、管理者の受信箱は開けない。存在しないスレッドURLは404", { timeout: 60_000 }, async () => {
+  const c = await get("/contact"); assert.equal(c.status, 200);
+  const t = await c.text(); assert.ok(t.includes("新しいメッセージ")); assert.ok(!t.includes("参加者からのメッセージ"));
+  const r = await get("/admin/messages"); assert.ok([307, 308].includes(r.status)); assert.match(r.headers.get("location") ?? "", /\/admin\/login/);
+  const miss = await get("/contact/t/" + "A".repeat(43)); assert.equal(miss.status, 404);
+  const short = await get("/contact/t/short"); assert.equal(short.status, 404);
 });
