@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # 使う ecosystem だけ残す(scaffold.sh が検出して書き換えます)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule: { interval: "daily" }
+    open-pull-requests-limit: 5
+    # メジャー更新は自動提案のみ。マージは互換性確認・テスト後に手動で行う
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule: { interval: "weekly" }

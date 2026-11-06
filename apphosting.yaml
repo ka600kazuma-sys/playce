@@ -1,0 +1,38 @@
+# Firebase App Hosting 用の設定(下書き。未デプロイ)。秘密の値は書かず、Secret Manager を参照する。
+# 反映前の確認事項は docs/deploy.md を参照。
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  minInstances: 0
+  maxInstances: 3
+  concurrency: 80
+
+env:
+  - variable: GCLOUD_PROJECT
+    value: playce-e1455
+    availability: [RUNTIME]
+  # 管理者として許可するGoogleアカウント(カンマ区切り)。未設定なら全員拒否。
+  - variable: ADMIN_EMAILS
+    secret: playce-admin-emails
+    availability: [RUNTIME]
+  # 申込フォームの署名用。長いランダム文字列。
+  - variable: FORM_SECRET
+    secret: playce-form-secret
+    availability: [RUNTIME]
+  # X-Forwarded-For のうち信頼するプロキシ段数。App Hosting(Cloud Run)での値は未確認のため、公開前に実測して確定する。
+  - variable: TRUSTED_PROXY_HOPS
+    value: "1"
+    availability: [RUNTIME]
+  # ブラウザに配信される公開設定(秘密ではない)。
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: playce-e1455
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: playce-e1455.firebaseapp.com
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:336328653773:web:b954f98ea983cf0b51a284
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: playce-firebase-web-api-key
+    availability: [BUILD, RUNTIME]

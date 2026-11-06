@@ -1,0 +1,9 @@
+rules_version = '2';
+// 既定はすべて拒否。添付ファイルの閲覧・保存は、権限確認後にサーバー経由で行う。
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

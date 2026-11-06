@@ -1,0 +1,43 @@
+name: security
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 21 * * *" # 毎日 06:17 JST
+  workflow_dispatch:
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz | tar xz gitleaks
+          ./gitleaks detect --redact --no-banner
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: osv-scanner
+        uses: google/osv-scanner-action/osv-scanner-action@v2.0.3
+        with:
+          scan-args: |-
+            -r
+            ./
+  codeql:
+    # 対象言語に合わせて matrix を編集(javascript-typescript / swift / python / java-kotlin 等)。
+    # Dart/Flutter は CodeQL 非対応のため `dart analyze` を CI に追加すること。
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        language: [javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with: { languages: "${{ matrix.language }}" }
+      - uses: github/codeql-action/analyze@v3
