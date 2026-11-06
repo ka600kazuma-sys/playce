@@ -1,6 +1,10 @@
 # 公開手順(Firebase App Hosting 案・未実施)
 
-状態: 2026-11-06 時点で、**デプロイ・Blaze契約・公開はしていない**。`apphosting.yaml` は下書き。
+状態: **2026-11-06 に初回公開済み**。URL: https://playce--playce-e1455.asia-east1.hosted.app （バックエンド `playce`、リージョン asia-east1、Node.js 24、GitHub `ka600kazuma-sys/playce` の `main`、自動ロールアウトなし＝手動）。
+更新の公開: `firebase apphosting:rollouts:create playce --git-branch main --project playce-e1455`（承認後に実行）。
+Blaze 切替・Secret Manager 登録（playce-form-secret / playce-admin-emails / playce-firebase-web-api-key）・アクセス権付与は済み。
+公開直後の確認: トップ200（カレンダー表示・エラーなし）、/admin 系は未ログインでログインへ307、/api/reception は GET 405、セキュリティヘッダ確認。
+**未確認**: 本番URLでの Googleログイン（Authentication の承認済みドメインに公開ドメインの追加が必要な可能性）、A2/A6 の手動確認、TRUSTED_PROXY_HOPS=1 の妥当性、実機iPhone、バックアップ。
 
 ## 採用案: Firebase App Hosting(Next.js のサーバー機能が必要なため)
 - このアプリは Server Actions / API Routes / Cookie認証を使うため、静的ホスティングだけでは動かない。App Hosting は Next.js をそのまま動かせる(裏は Cloud Run)。公開URLは `*.web.app`(確定済み)。

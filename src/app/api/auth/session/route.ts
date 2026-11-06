@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
-import { isAllowedAdmin, isSameOrigin } from "@/lib/auth/allowlist";
+import { isAllowedAdmin, sameOriginOf } from "@/lib/auth/allowlist";
 import { allow, requestIp } from "@/lib/repo/ratelimit";
 import { SESSION_COOKIE, SESSION_MAX_AGE_MS, allowlist } from "@/lib/auth/session";
 
@@ -8,7 +8,7 @@ const secure = process.env.NODE_ENV === "production";
 const deny = (status: number, message: string) => NextResponse.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
 
 export async function POST(req: Request) {
-  if (!isSameOrigin(req.headers.get("origin"), req.headers.get("host"))) return deny(403, "forbidden");
+  if (!sameOriginOf(req.headers)) return deny(403, "forbidden");
   if (!(await allow("login", await requestIp(req.headers)))) return deny(429, "too many requests");
   let idToken: unknown;
   try { idToken = (await req.json())?.idToken; } catch { return deny(400, "bad request"); }
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  if (!isSameOrigin(req.headers.get("origin"), req.headers.get("host"))) return deny(403, "forbidden");
+  if (!sameOriginOf(req.headers)) return deny(403, "forbidden");
   const value = req.headers.get("cookie")?.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`))?.[1];
   if (value) {
     try {

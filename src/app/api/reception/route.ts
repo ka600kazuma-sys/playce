@@ -1,5 +1,5 @@
 import { getAdmin } from "@/lib/auth/session";
-import { isSameOrigin } from "@/lib/auth/allowlist";
+import { sameOriginOf } from "@/lib/auth/allowlist";
 import { applyCheckInOp, recordPayment } from "@/lib/repo/reception";
 import { isOpId } from "@/lib/domain/offline";
 
@@ -9,7 +9,7 @@ const json = (status: number, body: unknown) => Response.json(body, { status, he
 const idOk = (s: unknown): s is string => typeof s === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(s);
 
 export async function POST(req: Request) {
-  if (!isSameOrigin(req.headers.get("origin"), req.headers.get("host")) || req.headers.get("x-requested-with") !== "playce") return json(403, { error: "forbidden" });
+  if (!sameOriginOf(req.headers) || req.headers.get("x-requested-with") !== "playce") return json(403, { error: "forbidden" });
   const admin = await getAdmin();
   if (!admin) return json(401, { error: "ログインが必要です" });
   let b: Record<string, unknown>;

@@ -19,11 +19,18 @@ export function isAllowedAdmin(id: VerifiedIdentity, allowlist: string[]): boole
 }
 
 // 状態を変えるリクエストが、自サイトから送られたものか確認する(CSRF対策)。
-export function isSameOrigin(origin: string | null, host: string | null): boolean {
-  if (!origin || !host) return false;
+// ホスティング(App Hosting / Cloud Run)のプロキシ配下では Host が内部のホスト名になるため、
+// プロキシが付ける X-Forwarded-Host(公開ドメイン)も照合する。別サイトのページからのリクエストは、
+// X-Forwarded-Host を任意に設定できない(ブラウザが許さない)ため、この照合で CSRF 対策は弱まらない。
+export function isSameOrigin(origin: string | null, host: string | null, forwardedHost?: string | null): boolean {
+  if (!origin) return false;
   try {
-    return new URL(origin).host === host;
+    const o = new URL(origin).host;
+    const fwd = forwardedHost?.split(",")[0]?.trim();
+    return (!!host && o === host) || (!!fwd && o === fwd);
   } catch {
     return false;
   }
 }
+
+export const sameOriginOf = (h: Headers) => isSameOrigin(h.get("origin"), h.get("host"), h.get("x-forwarded-host"));
