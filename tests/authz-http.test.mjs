@@ -47,12 +47,13 @@ test("A5 オフライン受付の同期API: ヘッダなし/別オリジンは40
   assert.equal((await post("/api/reception", body, { ...same, "x-requested-with": "playce", cookie: "playce_admin=forged" })).status, 401);
 });
 
-test("A2/A5 セッション発行API: Originなし・別オリジンは403、不正なIDトークンはセッションを発行しない", { timeout: 60_000 }, async () => {
-  assert.equal((await post("/api/auth/session", { idToken: "x".repeat(40) })).status, 403);
-  assert.equal((await post("/api/auth/session", { idToken: "x".repeat(40) }, { ...same, origin: "https://evil.example" })).status, 403);
-  const r = await post("/api/auth/session", { idToken: "x".repeat(40) }, same);
-  assert.ok([401, 429].includes(r.status), `status ${r.status}`);
+test("A2/A5 ログインAPI: Originなし・別オリジンは403、間違ったパスワードではセッションを発行しない。旧Googleログイン窓口は廃止(410)", { timeout: 60_000 }, async () => {
+  assert.equal((await post("/api/auth/login", { password: "x".repeat(20) })).status, 403);
+  assert.equal((await post("/api/auth/login", { password: "x".repeat(20) }, { ...same, origin: "https://evil.example" })).status, 403);
+  const r = await post("/api/auth/login", { password: "x".repeat(20) }, { ...same, "x-forwarded-for": "198.51.100.7" });
+  assert.ok([401, 429, 503].includes(r.status), `status ${r.status}`);
   assert.equal(r.headers.get("set-cookie"), null);
+  assert.equal((await post("/api/auth/session", { idToken: "x".repeat(40) }, same)).status, 410);
 });
 
 test("公開画面は未ログインで見られ、管理者向けの項目(主催者メニュー・参加者名簿)を含まない", { timeout: 60_000 }, async () => {

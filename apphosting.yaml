@@ -11,7 +11,11 @@ env:
   - variable: GCLOUD_PROJECT
     value: playce-e1455
     availability: [RUNTIME]
-  # 管理者として許可するGoogleアカウント(カンマ区切り)。未設定なら全員拒否。
+  # 主催者のパスワードのハッシュ(scripts/hash-admin-password.mjs で作成)。未設定なら誰もログインできない。
+  - variable: ADMIN_PASSWORD_HASH
+    secret: playce-admin-password-hash
+    availability: [RUNTIME]
+  # 操作の記録に残す呼び名(ログインの判定には使わない)。
   - variable: ADMIN_EMAILS
     secret: playce-admin-emails
     availability: [RUNTIME]

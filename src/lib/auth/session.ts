@@ -1,21 +1,25 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { adminAuth } from "@/lib/firebase/admin";
-import { isAllowedAdmin, parseAllowlist } from "./allowlist";
+import { fingerprint } from "@/lib/domain/password";
+import { isValidSession } from "@/lib/repo/adminSessions";
 
 export const SESSION_COOKIE = "playce_admin";
-export const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8時間
+export { SESSION_MS as SESSION_MAX_AGE_MS } from "@/lib/repo/adminSessions";
 
-export const allowlist = () => parseAllowlist(process.env.ADMIN_EMAILS);
+// 主催者のパスワードのハッシュ(Secret Manager)。未設定なら、誰もログインできない。
+export const adminPasswordHash = () => process.env.ADMIN_PASSWORD_HASH ?? "";
+// 操作の記録に残す呼び名(ADMIN_EMAILS の先頭。なければ「管理者」)。
+const label = () => (process.env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim()).filter(Boolean)[0] ?? "管理者";
 
-// セッションCookieを失効確認つきで検証し、許可リストにも照合する。管理者でなければ null。
+// Cookie のセッションを、有効期限とパスワードの版まで含めて検証する。主催者でなければ null。
 export async function getAdmin() {
+  const hash = adminPasswordHash();
+  if (!hash) return null;
   const value = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!value) return null;
   try {
-    const decoded = await adminAuth().verifySessionCookie(value, true);
-    return isAllowedAdmin(decoded, allowlist()) ? { uid: decoded.uid, email: decoded.email! } : null;
+    return (await isValidSession(value, fingerprint(hash))) ? { uid: "owner", email: label() } : null;
   } catch {
     return null;
   }
