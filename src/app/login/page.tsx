@@ -14,7 +14,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="mx-auto max-w-sm space-y-4 py-6">
       <h1 className="font-serif text-xl font-medium text-navy">ログイン</h1>
-      <p className="text-sm text-soft">参加申込には、ログインが必要です。ニックネームとパスワードを入力してください。</p>
+      <p className="text-sm text-soft">ふだんは、ログイン操作は不要です(自動でログインします)。ここは、はじめての方・機種変更の方・以前パスワードを設定した方の入口です。</p>
+      <div className="grid gap-2">
+        <Link href={`/signup?next=${encodeURIComponent(next)}`} className="rounded-2xl bg-navy-deep p-3 text-center font-semibold text-white">はじめての方(ニックネームだけで登録)</Link>
+        <Link href="/restore" className="rounded-2xl border border-line p-3 text-center font-semibold">機種変更の方(引き継ぎコード)</Link>
+      </div>
+      <h2 className="pt-2 text-sm font-semibold">以前パスワードを設定した方</h2>
       <form action={loginAction} className="space-y-3 rounded-2xl border border-line p-4">
         <input type="hidden" name="next" value={next} />
         {sp.err && <p role="alert" className="rounded border border-red-400 p-3 text-sm">{sp.err}</p>}
@@ -26,7 +31,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </label>
         <button className="w-full rounded-2xl bg-navy-deep p-3 text-lg font-semibold text-white">ログイン</button>
       </form>
-      <p className="text-center text-sm">はじめての方は <Link href={`/signup?next=${encodeURIComponent(next)}`} className="font-semibold text-blue underline">新規登録</Link></p>
       <p className="text-center text-xs text-soft">パスワードを忘れたときは、主催者に連絡してください(再設定します)。</p>
     </main>
   );

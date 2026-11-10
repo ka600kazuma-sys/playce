@@ -152,9 +152,9 @@ export async function changeRegistrationById(
 }
 
 // ---- メンバーの申込 ----
-export type MemberRegistration = MyRegistration & { regId: string };
+export type MemberRegistration = MyRegistration & { regId: string; attended: boolean }; // attended: 当日受付で出席確認された
 const toMy = (eventId: string, id: string, d: Doc & { nickname: string; members: string[]; feeYen: number }, ev: { title: string; startAt: string }): MemberRegistration => ({
-  regId: id, status: d.status, nickname: d.nickname, members: d.members ?? [], partySize: d.partySize, feeYen: d.feeYen,
+  regId: id, attended: (d as { checkedIn?: boolean }).checkedIn === true, status: d.status, nickname: d.nickname, members: d.members ?? [], partySize: d.partySize, feeYen: d.feeYen,
   offerExpiresAt: d.offerExpiresAt ?? null, reconfirm: d.reconfirm === true, event: { id: eventId, title: ev.title, startAt: ev.startAt },
 });
 

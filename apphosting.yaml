@@ -23,6 +23,11 @@ env:
   - variable: FORM_SECRET
     secret: playce-form-secret
     availability: [RUNTIME]
+  # 参加番号の自動配布(Cloud Scheduler)用の合言葉は、Secret Manager に playce-auto-job-secret を登録してから、次の3行を有効にする(docs/deploy.md)。
+  #   未登録のまま有効にするとロールアウトが失敗する。無効の間は、自動配布の入口は常に401を返す。
+  # - variable: AUTO_JOB_SECRET
+  #   secret: playce-auto-job-secret
+  #   availability: [RUNTIME]
   # X-Forwarded-For のうち信頼するプロキシ段数。App Hosting(Cloud Run)での値は未確認のため、公開前に実測して確定する。
   - variable: TRUSTED_PROXY_HOPS
     value: "1"

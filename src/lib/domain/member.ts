@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 // 参加者のアカウント(ニックネーム+自分で決めたパスワード)。
 export const NICK_MAX = 20;
@@ -29,3 +29,21 @@ export function memberPasswordProblem(pw: string, nickname?: string): string | n
 
 // 安全なリダイレクト先(同じサイト内の相対パスだけ)。
 export const safeNext = (n: unknown, fallback = "/") => (typeof n === "string" && /^\/(?!\/)[\w\-./?=&%]*$/.test(n) && !n.includes("..") ? n : fallback);
+
+// ---- アカウントの引き継ぎコード(機種変更用)----
+// 12文字(32種類 = 60ビット)の暗号乱数。紛らわしい文字(I, O, 0, 1)は使わない。DBにはハッシュだけを保存する。
+export const TRANSFER_TTL_MS = 30 * 60 * 1000; // 有効期限: 30分
+export const TRANSFER_MAX_USES = 1;            // 使用回数: 1回
+const TRANSFER_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32文字なので、バイト値の剰余に偏りが出ない
+const TRANSFER_LEN = 12;
+
+export const normalizeTransferCode = (raw: string) => raw.normalize("NFKC").toUpperCase().replace(/[\s-]/g, "");
+export const transferCodeShape = (norm: string) => new RegExp(`^[${TRANSFER_ALPHABET}]{${TRANSFER_LEN}}$`).test(norm);
+export const transferCodeHash = (raw: string) => createHash("sha256").update(`transfer|${normalizeTransferCode(raw)}`).digest("hex");
+export const formatTransferCode = (norm: string) => norm.match(/.{1,4}/g)!.join("-");
+
+export function newTransferCode(): { code: string; hash: string } {
+  const bytes = randomBytes(TRANSFER_LEN);
+  let norm = ""; for (const b of bytes) norm += TRANSFER_ALPHABET[b % 32];
+  return { code: formatTransferCode(norm), hash: transferCodeHash(norm) };
+}

@@ -40,3 +40,9 @@ Blaze 切替・Secret Manager 登録（playce-form-secret / playce-admin-emails 
 - [ ] App Check(ボット対策)の導入判断、`ratelimits` の TTL ポリシー設定
 - [ ] Firestore の日次バックアップ設定と復元テスト
 - [ ] 申込時の同意文面の確定、実機iPhoneでの確認
+
+## 参加番号の自動配布(任意・Cloud Scheduler)
+画面を開いたときの「遅延実行」に加えて、数分おきに内部APIを呼ぶと、誰も画面を開かなくても開始1時間前に配布される。**Blaze(従量課金)と Cloud Scheduler の有効化が必要なため、ユーザー承認後に行う。**
+1. 32文字以上のランダムな合言葉を作り、Secret Manager に `playce-auto-job-secret` として登録する(`apphosting.yaml` が参照済み)。
+2. Cloud Scheduler でジョブを作成: 5分おき、`POST https://<公開URL>/api/internal/auto-distribute`、ヘッダー `Authorization: Bearer <合言葉>`。
+3. 合言葉が未設定または32文字未満のときは、APIは常に401を返す(既定で無効)。

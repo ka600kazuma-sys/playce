@@ -13,6 +13,8 @@ export const SCOPES = {
   nicklogin: { limit: 8, windowMs: 10 * 60 * 1000 },    // 参加者のログイン(ニックネームごと。分散した総当たり対策)
   signup: { limit: 5, windowMs: 10 * 60 * 1000 },       // 参加者の新規登録
   account: { limit: 10, windowMs: 10 * 60 * 1000 },     // ニックネーム・パスワードの変更
+  transfer: { limit: 10, windowMs: 10 * 60 * 1000 },    // 引き継ぎコードの入力(IPごと。総当たり対策)
+  transferissue: { limit: 5, windowMs: 60 * 60 * 1000 }, // 引き継ぎコードの発行(メンバーごと)
 } as const;
 export type Scope = keyof typeof SCOPES;
 

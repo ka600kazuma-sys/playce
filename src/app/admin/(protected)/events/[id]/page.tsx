@@ -24,6 +24,7 @@ export default async function EditEvent({ params, searchParams }: { params: Prom
       {sp.done && <p className="rounded border p-3 text-sm">保存しました。</p>}
       {sp.err && <p role="alert" className="rounded border border-red-400 p-3 text-sm">{sp.err}</p>}
       <Link href={`/admin/events/${id}/reception`} className="block rounded bg-black p-3 text-center font-semibold text-white">当日受付・参加者管理を開く</Link>
+      <Link href={`/admin/events/${id}/matches`} className="block rounded border p-3 text-center font-semibold">試合管理（参加番号・組み合わせ）</Link>
       <Link href={`/admin/events/${id}/accounting`} className="block rounded border p-3 text-center font-semibold">会計（売上・経費・利益）</Link>
       <Link href={`/admin/events/${id}/print`} className="block rounded border p-3 text-center font-semibold">印刷用の受付名簿</Link>
       <EventForm action={updateEventAction.bind(null, id)} event={e} />
