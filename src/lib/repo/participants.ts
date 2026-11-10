@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/firebase/admin";
+import { currentNicknames } from "@/lib/repo/members";
 import { toPublicParticipants, type PartRow, type PublicParticipants } from "@/lib/domain/participants";
 
 const validId = (id: string) => /^[A-Za-z0-9_-]{1,64}$/.test(id);
@@ -9,10 +10,11 @@ export async function listPublicParticipants(eventIds: string[]): Promise<Record
   const out: Record<string, PublicParticipants> = {};
   await Promise.all(eventIds.filter(validId).map(async (id) => {
     const snap = await db().collection("events").doc(id).collection("registrations").where("status", "==", "confirmed").get();
-    const rows: PartRow[] = snap.docs.map((d) => {
-      const x = d.data() as Partial<PartRow>;
-      return { nickname: String(x.nickname ?? ""), partySize: Number(x.partySize ?? 1), status: "confirmed", publicHidden: x.publicHidden === true, createdAt: Number(x.createdAt ?? 0) };
-    });
+    const raw = snap.docs.map((d) => d.data() as Partial<PartRow> & { memberId?: string });
+    const names = await currentNicknames(raw.map((x) => x.memberId ?? "")); // メンバーは、登録時ではなく「いま」のニックネームで表示する
+    const rows: PartRow[] = raw.map((x) => ({
+      nickname: (x.memberId && names[x.memberId]) || String(x.nickname ?? ""), partySize: Number(x.partySize ?? 1), status: "confirmed", publicHidden: x.publicHidden === true, createdAt: Number(x.createdAt ?? 0),
+    }));
     out[id] = toPublicParticipants(rows);
   }));
   return out;

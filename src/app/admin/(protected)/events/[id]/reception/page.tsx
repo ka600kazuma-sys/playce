@@ -6,7 +6,8 @@ import { listPayments, listRegs } from "@/lib/repo/reception";
 import { amountDue, balance, matches, totals } from "@/lib/domain/reception";
 import { dateText, timeText } from "@/lib/format";
 import { QuickReception } from "./QuickReception";
-import { checkInAction, feeAction, groupPayAction, listVisibilityAction, payAction, voidAction, walkInAction } from "./actions";
+import { addMemberParticipantAction, checkInAction, feeAction, groupPayAction, listVisibilityAction, payAction, removeParticipantAction, voidAction, walkInAction } from "./actions";
+import { listMembers } from "@/lib/repo/members";
 
 export const dynamic = "force-dynamic";
 const yen = (n: number) => `${n.toLocaleString()}円`;
@@ -18,6 +19,7 @@ export default async function Reception({ params, searchParams }: { params: Prom
   const sp = await searchParams;
   const q = (sp.q ?? "").slice(0, 50);
   let e, regs, pays;
+  const membersAll = await listMembers().catch(() => []);
   try { [e, regs, pays] = await Promise.all([getEventAny(id), listRegs(id), listPayments(id)]); }
   catch { return <main className="p-4">読み込めませんでした。時間をおいて再度お試しください。</main>; }
   if (!e) notFound();
@@ -89,6 +91,14 @@ export default async function Reception({ params, searchParams }: { params: Prom
                 <input type="hidden" name="q" value={q} />
                 <button className="rounded border px-3 py-1.5">{r.publicHidden ? "公開の参加者一覧に表示する(いま:非表示)" : "公開の参加者一覧から隠す"}</button>
               </form>
+              <details className="text-sm"><summary className="cursor-pointer text-red-700">この参加者を削除(取消)</summary>
+                <form action={removeParticipantAction.bind(null, id, r.id)} className="mt-2 space-y-2">
+                  <input type="hidden" name="q" value={q} />
+                  <p className="text-xs text-gray-600">申込を取り消します(記録は残ります)。開始前なら、空いた枠に、キャンセル待ちが繰り上がります。入金済みの場合は、先に入金を取り消してください。</p>
+                  <label className="flex items-center gap-2"><input type="checkbox" name="confirm" className="h-5 w-5" /> 取り消すことを確認しました</label>
+                  <button className="rounded border border-red-400 px-3 py-2 text-red-700">削除(取消)する</button>
+                </form>
+              </details>
               <details className="text-sm"><summary className="cursor-pointer">個別料金を変更</summary>
                 <form action={feeAction.bind(null, id, r.id)} className="mt-2 flex flex-wrap gap-1">
                   <input type="hidden" name="q" value={q} />
@@ -101,6 +111,20 @@ export default async function Reception({ params, searchParams }: { params: Prom
           );
         })}
       </ul>
+
+      <form action={addMemberParticipantAction.bind(null, id)} className="space-y-2 rounded border p-3">
+        <p className="text-sm font-semibold">メンバーを参加者に追加(定員に関係なく、参加確定で登録)</p>
+        <input type="hidden" name="q" value={q} />
+        <div className="flex gap-2">
+          <select name="memberId" required defaultValue="" className="w-full rounded border p-3 text-base" aria-label="メンバー">
+            <option value="" disabled>メンバーを選ぶ</option>
+            {membersAll.map((m) => <option key={m.id} value={m.id}>{m.nickname}</option>)}
+          </select>
+          <input type="number" name="partySize" min={1} max={10} defaultValue={1} className="w-20 rounded border p-3" aria-label="人数" />
+        </div>
+        {membersAll.length === 0 && <p className="text-xs text-gray-500">メンバーがまだいません。「メンバー」の画面で、追加してください。</p>}
+        <button className="w-full rounded border p-3">参加者に追加する</button>
+      </form>
 
       <form action={walkInAction.bind(null, id)} className="space-y-2 rounded border p-3">
         <p className="text-sm font-semibold">飛び入り追加（受付済みで登録）</p>

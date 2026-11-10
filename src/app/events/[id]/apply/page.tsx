@@ -4,6 +4,7 @@ import { getPublicEvent } from "@/lib/repo/events";
 import { applyAction } from "../actions";
 import { MemberFields } from "../MemberFields";
 import { newFormToken } from "@/lib/repo/formtoken";
+import { requireMember } from "@/lib/auth/member";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +12,11 @@ export const dynamic = "force-dynamic";
 const RULES = "（仮）参加に関する重要ルールは、主催者が確定次第ここに表示します。";
 
 export default async function ApplyPage({ params, searchParams }: {
-  params: Promise<{ id: string }>; searchParams: Promise<{ err?: string; dup?: string }>;
+  params: Promise<{ id: string }>; searchParams: Promise<{ err?: string }>;
 }) {
   const { id } = await params;
-  const { err, dup } = await searchParams;
+  const { err } = await searchParams;
+  const member = await requireMember(`/events/${id}/apply`); // 未ログインなら、ログイン画面へ(ログイン後に、この画面へ戻る)
   let e;
   try { e = await getPublicEvent(id); } catch { return <main className="mx-auto max-w-2xl p-4">読み込めませんでした。時間をおいて再度お試しください。</main>; }
   if (!e) notFound();
@@ -29,15 +31,7 @@ export default async function ApplyPage({ params, searchParams }: {
           <input type="hidden" name="_t" value={formToken} />
           <div aria-hidden="true" style={{ position: "absolute", left: "-10000px" }}><label>ウェブサイト<input name="website" tabIndex={-1} autoComplete="off" /></label></div>
           {err && <p role="alert" className="rounded border border-red-400 p-3 text-sm">{err}</p>}
-          {dup && (
-            <div role="alert" className="rounded border border-yellow-500 p-3 text-sm">
-              <p>このブラウザから、すでにこのイベントへ申込があります。別の人の申込であればチェックして進めてください。</p>
-              <label className="mt-2 flex items-center gap-2"><input type="checkbox" name="confirmDuplicate" /> 別の申込として続ける</label>
-            </div>
-          )}
-          <label className="block text-sm font-semibold">ニックネーム（代表者）
-            <input name="nickname" required maxLength={30} className="mt-1 block w-full rounded border p-3 text-base" autoComplete="off" />
-          </label>
+          <p className="rounded border p-3 text-sm">代表者: <strong>{member.nickname}</strong> さん(ログイン中)<br /><span className="text-xs text-gray-500">ニックネームは、メニューの「アカウント」で変更できます。</span></p>
           <MemberFields initial={[]} />
           <div className="rounded border p-3 text-sm">
             <p className="font-semibold">重要ルール</p>

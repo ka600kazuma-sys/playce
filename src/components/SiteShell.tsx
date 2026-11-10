@@ -7,7 +7,7 @@ import { visibleMenu, type MenuItem } from "@/lib/menu";
 
 // 参加者向け画面の共通枠: 上部バー+左スライドメニュー。下部の固定ナビは設けない。
 // 閉じ方: ×ボタン / 背景タップ / 左スワイプ / Esc / 項目選択。管理画面(/admin)は独自レイアウトのため枠を出さない。
-export function SiteShell({ isAdmin, children }: { isAdmin: boolean; children: React.ReactNode }) {
+export function SiteShell({ isAdmin, memberNickname, children }: { isAdmin: boolean; memberNickname?: string | null; children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [drag, setDrag] = useState(0);
@@ -30,7 +30,7 @@ export function SiteShell({ isAdmin, children }: { isAdmin: boolean; children: R
 
   if (pathname.startsWith("/admin")) return <>{children}</>;
 
-  const items = visibleMenu(isAdmin);
+  const items = visibleMenu(isAdmin, memberNickname);
   const footer = items.find((i) => i.id === "login");
   const list = items.filter((i) => i.id !== "login");
   const current = (i: MenuItem) => i.href === "/" ? pathname === "/" : !!i.href && pathname.startsWith(i.href);

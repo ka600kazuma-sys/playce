@@ -14,7 +14,14 @@ const ALL: MenuItem[] = [
 const ADMIN: MenuItem = { id: "admin", label: "主催者メニュー", icon: "shield", href: "/admin", ready: true };
 export const LOGIN: MenuItem = { id: "login", label: "主催者ログイン", icon: "user", href: "/admin/login", ready: true };
 
-export const visibleMenu = (isAdmin: boolean): MenuItem[] => [...ALL, ...(isAdmin ? [ADMIN] : [LOGIN])];
+// 参加者のアカウント(ログイン中ならニックネームを表示、未ログインなら「ログイン / 新規登録」)を、「自分の参加予定」の下に出す。
+const accountItem = (nickname?: string | null): MenuItem => nickname
+  ? { id: "account", label: `${nickname} さん`, icon: "user", href: "/account", ready: true }
+  : { id: "account", label: "ログイン / 新規登録", icon: "user", href: "/login", ready: true };
+export const visibleMenu = (isAdmin: boolean, memberNickname?: string | null): MenuItem[] => {
+  const list = [...ALL]; list.splice(2, 0, accountItem(memberNickname));
+  return [...list, ...(isAdmin ? [ADMIN] : [LOGIN])];
+};
 export const SOON_TITLES: Record<string, { title: string; note: string }> = {
   record: { title: "対戦成績", note: "対戦成績は、見たい人だけが利用できる任意の機能です。ログインと保存の仕組みが整い次第、提供します。" },
   notices: { title: "お知らせ", note: "開催の変更や中止のお知らせは、準備ができ次第こちらに表示します。" },

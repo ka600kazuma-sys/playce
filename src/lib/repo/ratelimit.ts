@@ -9,6 +9,10 @@ export const SCOPES = {
   manage: { limit: 30, windowMs: 10 * 60 * 1000 }, // 管理URLの閲覧・変更(トークン総当たり対策を兼ねる)
   login: { limit: 5, windowMs: 10 * 60 * 1000 },   // 主催者ログイン(パスワードの総当たり対策)
   contact: { limit: 5, windowMs: 10 * 60 * 1000 }, // 主催者へのメッセージ送信・返信
+  memberlogin: { limit: 10, windowMs: 10 * 60 * 1000 }, // 参加者のログイン(IPごと)
+  nicklogin: { limit: 8, windowMs: 10 * 60 * 1000 },    // 参加者のログイン(ニックネームごと。分散した総当たり対策)
+  signup: { limit: 5, windowMs: 10 * 60 * 1000 },       // 参加者の新規登録
+  account: { limit: 10, windowMs: 10 * 60 * 1000 },     // ニックネーム・パスワードの変更
 } as const;
 export type Scope = keyof typeof SCOPES;
 

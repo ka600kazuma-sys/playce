@@ -3,11 +3,12 @@ import { db } from "@/lib/firebase/admin";
 import type { RegStatus } from "@/lib/domain/registration";
 import { amountDue } from "@/lib/domain/reception";
 import { classifyCheckIn } from "@/lib/domain/offline";
+import { currentNicknames } from "@/lib/repo/members";
 
 // 管理者専用。呼び出し側で requireAdmin() を済ませること。
 export type RegView = {
   id: string; nickname: string; members: string[]; partySize: number; status: RegStatus;
-  feeYen: number; paidYen: number; checkedIn: boolean; source: string; createdAt: number; reconfirm: boolean; publicHidden: boolean;
+  feeYen: number; paidYen: number; checkedIn: boolean; source: string; createdAt: number; reconfirm: boolean; publicHidden: boolean; memberId: string | null;
 };
 export type PaymentView = { id: string; at: number; by: string; amountYen: number; allocations: { regId: string; amountYen: number }[]; voided: boolean; voidReason?: string };
 
@@ -17,12 +18,15 @@ type Raw = Partial<RegView> & { nickname: string; members: string[]; partySize: 
 const view = (id: string, d: Raw): RegView => ({
   id, nickname: d.nickname, members: d.members ?? [], partySize: d.partySize, status: d.status, feeYen: d.feeYen,
   paidYen: d.paidYen ?? 0, checkedIn: d.checkedIn ?? false, source: d.source ?? "web", createdAt: d.createdAt ?? 0, reconfirm: d.reconfirm === true, publicHidden: (d as { publicHidden?: boolean }).publicHidden === true,
+  memberId: (d as { memberId?: string }).memberId ?? null,
 });
 
 export async function listRegs(eventId: string): Promise<RegView[]> {
   if (!validId(eventId)) return [];
   const snap = await ev(eventId).collection("registrations").orderBy("createdAt").get();
-  return snap.docs.map((d) => view(d.id, d.data() as Raw));
+  const rows = snap.docs.map((d) => view(d.id, d.data() as Raw));
+  const names = await currentNicknames(rows.map((r) => r.memberId ?? "")); // メンバーは、いまのニックネームで表示する
+  return rows.map((r) => (r.memberId && names[r.memberId] ? { ...r, nickname: names[r.memberId] } : r));
 }
 export async function listPayments(eventId: string): Promise<PaymentView[]> {
   if (!validId(eventId)) return [];

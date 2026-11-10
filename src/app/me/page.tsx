@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { getMyRegistration, type MyRegistration } from "@/lib/repo/registrations";
+import { getMyRegistration, listMemberRegistrations, type MemberRegistration, type MyRegistration } from "@/lib/repo/registrations";
+import { getMember } from "@/lib/auth/member";
+import { listPublicEvents } from "@/lib/repo/events";
 import { allow, requestIp } from "@/lib/repo/ratelimit";
 import { dateText, timeText } from "@/lib/format";
 
@@ -21,23 +23,54 @@ export default async function MyRegistrationsPage() {
     try { const r = await getMyRegistration(p.id, p.token); return r ? { ...p, r } : null; } catch { return null; }
   }))).filter((x): x is { id: string; token: string; r: MyRegistration } => x !== null).sort((a, b) => a.r.event.startAt.localeCompare(b.r.event.startAt));
 
+  const member = await getMember();
+  let mine: MemberRegistration[] = [];
+  if (member) {
+    const events = await listPublicEvents().catch(() => []);
+    mine = (await listMemberRegistrations(member.id, events)).sort((a, b) => a.event.startAt.localeCompare(b.event.startAt));
+  }
+  // 旧(ログイン導入前)の申込は、このブラウザの専用URLの分だけ。ログイン済みの申込と重ならないものを出す。
+  const legacy = rows.filter(({ id }) => !mine.some((x) => x.event.id === id));
   return (
     <main className="mx-auto max-w-2xl space-y-3 py-4">
       <h1 className="font-serif text-xl font-medium text-navy">自分の参加予定</h1>
-      {rows.length === 0 ? <p className="text-sm text-soft">このブラウザには申込がありません。申込後に表示される専用URLからも確認できます。</p> : (
-        <ul className="space-y-2">
-          {rows.map(({ id, token, r }) => (
-            <li key={id}>
-              <Link href={`/events/${id}/r/${token}`} className="grid gap-1 rounded-2xl border border-line p-3.5">
-                <strong className="font-serif text-lg">{r.event.title}</strong>
-                <span className="text-sm text-soft">{dateText(r.event.startAt)} {timeText(r.event.startAt)}〜</span>
-                <span className="text-sm">{r.nickname}{r.members.length > 0 && `、${r.members.join("、")}`}({r.partySize}人)・{LABEL[r.status]}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+      {member ? (
+        <>
+          <p className="text-sm text-soft">{member.nickname} さんの申込です(どの端末でも、ログインすれば表示されます)。</p>
+          {mine.length === 0 ? <p className="text-sm text-soft">申込はまだありません。</p> : (
+            <ul className="space-y-2">{mine.map((r) => (
+              <li key={r.regId}>
+                <Link href={`/events/${r.event.id}/mine`} className="grid gap-1 rounded-2xl border border-line p-3.5">
+                  <strong className="font-serif text-lg">{r.event.title}</strong>
+                  <span className="text-sm text-soft">{dateText(r.event.startAt)} {timeText(r.event.startAt)}〜</span>
+                  <span className="text-sm">{r.partySize}人・{LABEL[r.status]}</span>
+                </Link>
+              </li>))}</ul>
+          )}
+        </>
+      ) : (
+        <div className="rounded-2xl border border-line p-3.5 text-sm">
+          <p>ログインすると、どの端末でも、自分の参加予定を確認・変更できます。</p>
+          <p className="mt-2 flex gap-3"><Link href="/login?next=/me" className="font-semibold text-blue underline">ログイン</Link><Link href="/signup?next=/me" className="font-semibold text-blue underline">新規登録</Link></p>
+        </div>
       )}
-      <p className="text-xs text-soft">この一覧は、このブラウザに保存された申込だけを表示します。</p>
+      {legacy.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="pt-2 text-sm font-semibold">このブラウザの、ログイン前の申込</h2>
+          <ul className="space-y-2">
+            {legacy.map(({ id, token, r }) => (
+              <li key={id}>
+                <Link href={`/events/${id}/r/${token}`} className="grid gap-1 rounded-2xl border border-line p-3.5">
+                  <strong className="font-serif text-lg">{r.event.title}</strong>
+                  <span className="text-sm text-soft">{dateText(r.event.startAt)} {timeText(r.event.startAt)}〜</span>
+                  <span className="text-sm">{r.nickname}{r.members.length > 0 && `、${r.members.join("、")}`}({r.partySize}人)・{LABEL[r.status]}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-soft">この一覧は、このブラウザに保存された、ログイン前の申込だけを表示します。</p>
+        </section>
+      )}
     </main>
   );
 }
