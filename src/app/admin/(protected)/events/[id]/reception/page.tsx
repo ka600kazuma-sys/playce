@@ -6,7 +6,7 @@ import { listPayments, listRegs } from "@/lib/repo/reception";
 import { amountDue, balance, matches, totals } from "@/lib/domain/reception";
 import { dateText, timeText } from "@/lib/format";
 import { QuickReception } from "./QuickReception";
-import { checkInAction, feeAction, groupPayAction, payAction, voidAction, walkInAction } from "./actions";
+import { checkInAction, feeAction, groupPayAction, listVisibilityAction, payAction, voidAction, walkInAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 const yen = (n: number) => `${n.toLocaleString()}円`;
@@ -85,6 +85,10 @@ export default async function Reception({ params, searchParams }: { params: Prom
                   </form>
                 )}
               </div>
+              <form action={listVisibilityAction.bind(null, id, r.id, !r.publicHidden)} className="text-sm">
+                <input type="hidden" name="q" value={q} />
+                <button className="rounded border px-3 py-1.5">{r.publicHidden ? "公開の参加者一覧に表示する(いま:非表示)" : "公開の参加者一覧から隠す"}</button>
+              </form>
               <details className="text-sm"><summary className="cursor-pointer">個別料金を変更</summary>
                 <form action={feeAction.bind(null, id, r.id)} className="mt-2 flex flex-wrap gap-1">
                   <input type="hidden" name="q" value={q} />

@@ -44,6 +44,7 @@ export default async function ApplyPage({ params, searchParams }: {
             <p className="my-2">{RULES}</p>
             <label className="flex items-center gap-2"><input type="checkbox" name="agreedRules" required /> 内容に同意します</label>
           </div>
+          <p className="rounded border p-3 text-sm">参加が確定すると、<strong>代表者のニックネームが、参加者一覧として、誰でも見られる場所に表示されます</strong>(同行者の名前は表示されません。人数だけが含まれます)。表示を望まない場合は、ニックネームに本名を使わないでください。</p>
           <button className="w-full rounded bg-black p-3 font-semibold text-white">申し込む</button>
           <p className="text-xs text-gray-500">申込後に表示される専用URLは、変更・キャンセルに必要です。他の人に共有しないでください。</p>
         </form>

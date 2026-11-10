@@ -7,7 +7,7 @@ import { classifyCheckIn } from "@/lib/domain/offline";
 // 管理者専用。呼び出し側で requireAdmin() を済ませること。
 export type RegView = {
   id: string; nickname: string; members: string[]; partySize: number; status: RegStatus;
-  feeYen: number; paidYen: number; checkedIn: boolean; source: string; createdAt: number; reconfirm: boolean;
+  feeYen: number; paidYen: number; checkedIn: boolean; source: string; createdAt: number; reconfirm: boolean; publicHidden: boolean;
 };
 export type PaymentView = { id: string; at: number; by: string; amountYen: number; allocations: { regId: string; amountYen: number }[]; voided: boolean; voidReason?: string };
 
@@ -16,7 +16,7 @@ const validId = (id: string) => /^[A-Za-z0-9_-]{1,64}$/.test(id);
 type Raw = Partial<RegView> & { nickname: string; members: string[]; partySize: number; status: RegStatus; feeYen: number };
 const view = (id: string, d: Raw): RegView => ({
   id, nickname: d.nickname, members: d.members ?? [], partySize: d.partySize, status: d.status, feeYen: d.feeYen,
-  paidYen: d.paidYen ?? 0, checkedIn: d.checkedIn ?? false, source: d.source ?? "web", createdAt: d.createdAt ?? 0, reconfirm: d.reconfirm === true,
+  paidYen: d.paidYen ?? 0, checkedIn: d.checkedIn ?? false, source: d.source ?? "web", createdAt: d.createdAt ?? 0, reconfirm: d.reconfirm === true, publicHidden: (d as { publicHidden?: boolean }).publicHidden === true,
 });
 
 export async function listRegs(eventId: string): Promise<RegView[]> {
@@ -148,6 +148,19 @@ export async function applyCheckInOp(eventId: string, opId: string, regId: strin
       audit(tx, eventId, by, value ? "checkin" : "checkin_undo", { regId, opId, forced: force, offline: true });
     }
     tx.create(opRef, { at: Date.now(), by, type: "checkin", regId });
+    return "ok";
+  });
+}
+
+// 公開の参加者一覧に、この人のニックネームを出すか(主催者の判断。不適切な名前などを隠す)。人数には含まれる。
+export async function setPublicHidden(eventId: string, regId: string, hidden: boolean, by: string): Promise<OpResult> {
+  if (!validId(eventId) || !validId(regId)) return "not_found";
+  const ref = ev(eventId).collection("registrations").doc(regId);
+  return db().runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    if (!s.exists) return "not_found";
+    tx.update(ref, { publicHidden: hidden, updatedAt: Date.now() });
+    audit(tx, eventId, by, hidden ? "list_hide" : "list_show", { regId });
     return "ok";
   });
 }

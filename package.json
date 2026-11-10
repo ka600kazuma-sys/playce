@@ -9,7 +9,7 @@
     "lint": "eslint",
     "security:check": "bash scripts/security-check.sh . && bash scripts/check-authz-todos.sh",
     "test": "node --test tests/*.test.mjs",
-    "test:firestore": "RUN_FIRESTORE_TESTS=1 node --env-file=.env.local --conditions=react-server --import ./tests/firestore/register.mjs --test --test-timeout=300000 tests/firestore/*.test.mjs"
+    "test:firestore": "RUN_FIRESTORE_TESTS=1 node --env-file=.env.local --conditions=react-server --import ./tests/firestore/register.mjs --test --test-concurrency=1 --test-timeout=300000 tests/firestore/*.test.mjs"
   },
   "dependencies": {
     "firebase": "^13.2.0",

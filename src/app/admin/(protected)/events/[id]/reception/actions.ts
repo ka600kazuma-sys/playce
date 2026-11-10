@@ -1,7 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/session";
-import { addWalkIn, recordPayment, setCheckedIn, setFeeOverride, voidPayment, type OpResult } from "@/lib/repo/reception";
+import { addWalkIn, recordPayment, setCheckedIn, setFeeOverride, setPublicHidden, voidPayment, type OpResult } from "@/lib/repo/reception";
 
 const MSG: Record<OpResult, string> = { ok: "", not_found: "対象が見つかりません。", invalid: "入力が正しくないか、支払い額が残額を超えています。", closed: "会計が確定済みのため変更できません。会計画面で確定を解除してください。" };
 const go = (id: string, q: string, res: OpResult | "error"): never =>
@@ -37,4 +37,7 @@ export async function feeAction(id: string, regId: string, fd: FormData) {
 }
 export async function walkInAction(id: string, fd: FormData) {
   return run(id, fd, (by) => addWalkIn(id, String(fd.get("nickname") ?? "").trim(), num(fd.get("partySize")), by));
+}
+export async function listVisibilityAction(id: string, regId: string, hidden: boolean, fd: FormData) {
+  return run(id, fd, (by) => setPublicHidden(id, regId, hidden, by));
 }

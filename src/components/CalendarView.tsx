@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Icon } from "./icons";
+import { ParticipantList } from "./ParticipantList";
+import type { PublicParticipants } from "@/lib/domain/participants";
 import { SPORT_LABEL, type PublicEvent } from "@/lib/domain/events";
 import { WEEKDAYS, dateLabel, holidaysOf, monthGrid, shiftYm, toKey, ymText } from "@/lib/domain/calendar";
 
@@ -14,7 +16,7 @@ const hm = (iso: string) => new Intl.DateTimeFormat("ja-JP", { timeZone: TZ, hou
 
 // 月間カレンダー。日付を選ぶと、その日の開催情報と申込ボタンを下に表示する(実際の登録データのみ)。
 // events は公開してよいフィールドだけ(サーバーで検証済み)。nowIso はサーバー時刻(ハイドレーション差を避ける)。
-export function CalendarView({ year, month, events, todayKey, nowIso, view }: { year: number; month: number; events: PublicEvent[]; todayKey: string; nowIso: string; view: "month" | "list" }) {
+export function CalendarView({ year, month, events, todayKey, nowIso, view, participants }: { year: number; month: number; events: PublicEvent[]; todayKey: string; nowIso: string; view: "month" | "list"; participants: Record<string, PublicParticipants> }) {
   const hol = holidaysOf(year);
   const inMonthToday = todayKey.startsWith(ymText(year, month));
   const [selected, setSelected] = useState<string | null>(inMonthToday ? todayKey : null);
@@ -83,7 +85,7 @@ export function CalendarView({ year, month, events, todayKey, nowIso, view }: { 
             <>
               <h2 className="m-0 font-serif text-lg font-medium text-navy">{dateLabel(sel[0], sel[1], sel[2])}</h2>
               {(byDay.get(selected!) ?? []).length === 0 && <p className="text-sm text-soft">この日の開催はありません。</p>}
-              {(byDay.get(selected!) ?? []).map((e) => <EventCard key={e.id} e={e} nowIso={nowIso} />)}
+              {(byDay.get(selected!) ?? []).map((e) => <EventCard key={e.id} e={e} nowIso={nowIso} p={participants[e.id]} showParticipants={e.status === "published"} />)}
             </>
           )}
         </section>
@@ -92,7 +94,7 @@ export function CalendarView({ year, month, events, todayKey, nowIso, view }: { 
   );
 }
 
-function EventCard({ e, nowIso }: { e: PublicEvent; nowIso: string }) {
+function EventCard({ e, nowIso, p, showParticipants }: { e: PublicEvent; nowIso: string; p: PublicParticipants | undefined; showParticipants: boolean }) {
   const started = new Date(e.startAt) <= new Date(nowIso);
   return (
     <article className="grid gap-2 border-t border-line pt-3.5 first:border-t-0 first:pt-0">
@@ -105,6 +107,7 @@ function EventCard({ e, nowIso }: { e: PublicEvent; nowIso: string }) {
         <li className="flex items-center gap-3"><Icon name="clock" className="h-5 w-5 flex-none text-soft" />{hm(e.startAt)}–{hm(e.endAt)}</li>
         <li className="flex items-center gap-3"><Icon name="yen" className="h-5 w-5 flex-none text-soft" />{e.feeYen === 0 ? "無料" : `${e.feeYen.toLocaleString()}円`}</li>
       </ul>
+      {showParticipants && <ParticipantList p={p} />}
       {e.status === "published" && !started
         ? <Link href={`/events/${e.id}/apply`} className="grid min-h-[52px] place-items-center rounded-2xl bg-navy-deep text-lg font-semibold tracking-widest text-white">参加申込</Link>
         : <p className="text-sm text-soft">{e.status === "cancelled" ? "この開催は中止になりました。" : e.status === "postponed" ? "延期になりました。日程が決まり次第お知らせします。" : "受付は終了しました。"}</p>}

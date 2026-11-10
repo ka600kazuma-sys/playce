@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicEvent } from "@/lib/repo/events";
+import { listPublicParticipants } from "@/lib/repo/participants";
+import { ParticipantList } from "@/components/ParticipantList";
 import { SPORT_LABEL } from "@/lib/domain/events";
 import { dateText, timeText } from "@/lib/format";
 
@@ -15,6 +17,7 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
     return <main className="mx-auto max-w-2xl p-4">読み込めませんでした。時間をおいて再度お試しください。</main>;
   }
   if (!e) notFound();
+  const participants = e.status === "published" ? await listPublicParticipants([e.id]).catch(() => ({} as Record<string, never>)) : {};
   return (
     <main className="mx-auto max-w-2xl space-y-3 p-4">
       <Link href="/" className="text-sm">← カレンダーに戻る</Link>
@@ -33,6 +36,7 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
         {e.belongings && <div><dt className="inline font-semibold">持ち物: </dt><dd className="inline">{e.belongings}</dd></div>}
         {e.notes && <div><dt className="inline font-semibold">注意事項: </dt><dd className="inline">{e.notes}</dd></div>}
       </dl>
+      {e.status === "published" && <ParticipantList p={participants[e.id]} />}
     </main>
   );
 }
