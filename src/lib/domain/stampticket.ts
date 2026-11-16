@@ -13,7 +13,7 @@ export type Slot = { n: number; on: boolean; tier: boolean; label: string; isNew
 export type TicketModel = {
   sport: StampSport; label: string; en: string; code: string; accent: string;
   enabled: boolean; points: number; tapped: boolean;
-  hasEvent: boolean; startAt: string | null; venue: string; participant: string; serial: string;
+  hasEvent: boolean; startAt: string | null; venue: string; venueHref: string | null; participant: string; serial: string;
   phase: "today" | "next"; kicker: string; // today: かざす前=今日の参加費 / next: かざした後=次回の参加費(目安)
   baseFeeYen: number; priceYen: number; discountYen: number; nextIndex: number; nextText: string;
   slots: Slot[];
@@ -24,7 +24,7 @@ const META: Record<StampSport, { label: string; en: string; code: string; accent
   volleyball: { label: "バレーボール", en: "VOLLEYBALL", code: "VB", accent: "#2f6fd0" },
 };
 
-export function buildTicketModel(t: TicketInput, nickname: string, newIndex = 0): TicketModel {
+export function buildTicketModel(t: TicketInput, nickname: string, newIndex = 0, venueHref: string | null = null): TicketModel {
   const m = META[t.sport];
   const phase = t.tapped ? "next" : "today";
   // かざす前: 今日の来場(次に付くポイント)の価格。受付で適用済みなら、その割引をそのまま使う(二重に引かない)。
@@ -49,7 +49,7 @@ export function buildTicketModel(t: TicketInput, nickname: string, newIndex = 0)
   });
   return {
     sport: t.sport, ...m, enabled: t.enabled, points: t.points, tapped: t.tapped,
-    hasEvent: !!t.event, startAt: t.event?.startAt ?? null, venue: t.event?.venue ?? "",
+    hasEvent: !!t.event, startAt: t.event?.startAt ?? null, venue: t.event?.venue ?? "", venueHref: t.event ? venueHref : null,
     serial: `${m.code}-${t.event ? t.event.startAt.slice(0, 10).replaceAll("-", "") : "00000000"}`,
     participant: t.event ? `${nickname}${t.partySize > 1 ? ` ほか${t.partySize - 1}名` : ""}` : "",
     phase, kicker: phase === "today" ? "TODAY'S ENTRY / 本日の参加費" : "NEXT ENTRY / 次回の参加費(目安)",

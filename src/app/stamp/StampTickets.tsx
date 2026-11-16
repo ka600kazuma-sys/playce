@@ -22,7 +22,7 @@ function Ticket({ m, notice, animate }: { m: TicketModel; notice: Notice | null;
             <div>
               <div className="st-price">
                 <span className="st-yen">{yen(m.priceYen)}<small>円</small></span>
-                {m.discountYen > 0 ? <><s>通常 {yen(m.baseFeeYen)}円</s><span className="st-badge">{m.discountYen}円引き</span></> : <s>通常料金</s>}
+                {m.discountYen > 0 ? <><s>通常 {yen(m.baseFeeYen)}円</s><span className="st-badge">{m.discountYen}円引き</span></> : <span className="st-plain">通常料金</span>}
               </div>
               <div className="st-next">{m.nextText}</div>
             </div>
@@ -34,7 +34,7 @@ function Ticket({ m, notice, animate }: { m: TicketModel; notice: Notice | null;
           )}
           <dl className="st-info">
             <div><dt>開催日</dt><dd>{m.hasEvent && m.startAt ? `${dateText(m.startAt)} ${timeText(m.startAt)}〜` : "―"}</dd></div>
-            <div><dt>会場</dt><dd>{m.hasEvent ? m.venue : "―"}</dd></div>
+            <div><dt>会場</dt><dd>{m.hasEvent ? (m.venueHref ? <a href={m.venueHref} target="_blank" rel="noopener noreferrer" aria-label={`${m.venue}をGoogleマップで開く`} className="st-maplink">{m.venue}</a> : m.venue) : "―"}</dd></div>
             <div><dt>参加者</dt><dd>{m.hasEvent ? m.participant : "―"}</dd></div>
           </dl>
           {m.tapped && m.hasEvent && <span className={`st-admit ${animate ? "new" : ""}`}>THANK<br />YOU</span>}

@@ -22,6 +22,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/events/new" className="rounded bg-blue-700 px-3 py-1.5 font-semibold text-white">＋ 新規作成</Link>
           <Link href="/admin/members" className="rounded border px-3 py-1.5">メンバー</Link>
           <Link href="/admin/stamp" className="rounded border px-3 py-1.5">スタンプ</Link>
+          <Link href="/admin/venues" className="rounded border px-3 py-1.5">会場</Link>
           <Link href="/admin/messages" className="rounded border px-3 py-1.5">メッセージ{unread > 0 && <span className="ml-1 rounded bg-blue-600 px-1.5 py-0.5 text-xs text-white">{unread}</span>}</Link>
         </nav>
       </header>

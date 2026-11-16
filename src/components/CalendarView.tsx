@@ -16,7 +16,7 @@ const hm = (iso: string) => new Intl.DateTimeFormat("ja-JP", { timeZone: TZ, hou
 
 // 月間カレンダー。日付を選ぶと、その日の開催情報と申込ボタンを下に表示する(実際の登録データのみ)。
 // events は公開してよいフィールドだけ(サーバーで検証済み)。nowIso はサーバー時刻(ハイドレーション差を避ける)。
-export function CalendarView({ year, month, events, todayKey, nowIso, view, participants }: { year: number; month: number; events: PublicEvent[]; todayKey: string; nowIso: string; view: "month" | "list"; participants: Record<string, PublicParticipants> }) {
+export function CalendarView({ year, month, events, todayKey, nowIso, view, participants, venueLinks }: { year: number; month: number; events: PublicEvent[]; todayKey: string; nowIso: string; view: "month" | "list"; participants: Record<string, PublicParticipants>; venueLinks: Record<string, string> }) {
   const hol = holidaysOf(year);
   const inMonthToday = todayKey.startsWith(ymText(year, month));
   const [selected, setSelected] = useState<string | null>(inMonthToday ? todayKey : null);
@@ -85,7 +85,7 @@ export function CalendarView({ year, month, events, todayKey, nowIso, view, part
             <>
               <h2 className="m-0 font-serif text-lg font-medium text-navy">{dateLabel(sel[0], sel[1], sel[2])}</h2>
               {(byDay.get(selected!) ?? []).length === 0 && <p className="text-sm text-soft">この日の開催はありません。</p>}
-              {(byDay.get(selected!) ?? []).map((e) => <EventCard key={e.id} e={e} nowIso={nowIso} p={participants[e.id]} showParticipants={e.status === "published"} />)}
+              {(byDay.get(selected!) ?? []).map((e) => <EventCard key={e.id} e={e} nowIso={nowIso} p={participants[e.id]} showParticipants={e.status === "published"} mapHref={venueLinks[e.venue]} />)}
             </>
           )}
         </section>
@@ -94,7 +94,7 @@ export function CalendarView({ year, month, events, todayKey, nowIso, view, part
   );
 }
 
-function EventCard({ e, nowIso, p, showParticipants }: { e: PublicEvent; nowIso: string; p: PublicParticipants | undefined; showParticipants: boolean }) {
+function EventCard({ e, nowIso, p, showParticipants, mapHref }: { e: PublicEvent; nowIso: string; p: PublicParticipants | undefined; showParticipants: boolean; mapHref?: string }) {
   const started = new Date(e.startAt) <= new Date(nowIso);
   return (
     <article className="grid gap-2 border-t border-line pt-3.5 first:border-t-0 first:pt-0">
@@ -103,7 +103,7 @@ function EventCard({ e, nowIso, p, showParticipants }: { e: PublicEvent; nowIso:
         {BADGE[e.status] && <span className="rounded-full bg-[#fde7e9] px-3 py-1 font-sans text-xs text-[#9b1c27]">{BADGE[e.status]}</span>}
       </h3>
       <ul className="grid gap-1.5 text-[15px]">
-        <li className="flex items-center gap-3"><Icon name="pin" className="h-5 w-5 flex-none text-soft" />{e.venue}</li>
+        <li className="flex items-center gap-3"><Icon name="pin" className="h-5 w-5 flex-none text-soft" />{mapHref ? <a href={mapHref} target="_blank" rel="noopener noreferrer" aria-label={`${e.venue}をGoogleマップで開く`} className="text-navy underline underline-offset-2">{e.venue}</a> : e.venue}</li>
         <li className="flex items-center gap-3"><Icon name="clock" className="h-5 w-5 flex-none text-soft" />{hm(e.startAt)}–{hm(e.endAt)}</li>
         <li className="flex items-center gap-3"><Icon name="yen" className="h-5 w-5 flex-none text-soft" />{e.feeYen === 0 ? "無料" : `${e.feeYen.toLocaleString()}円`}</li>
       </ul>

@@ -140,3 +140,10 @@ test("チケット: 参加予定なしのときは、開催情報・料金を出
 test("かざした結果の案内文が、すべての結果に用意されている", () => {
   for (const k of ["off", "noreg", "already", "early", "late", "unsupported", "invalid", "bad", "retry", "busy"]) assert.ok(TAP_NOTICE[k], k);
 });
+
+test("チケット: 会場のリンクを持たせられる。参加予定なしのときは出さない", () => {
+  const m = buildTicketModel(T, "たろう", 0, "https://maps.app.goo.gl/x");
+  assert.equal(m.venueHref, "https://maps.app.goo.gl/x");
+  assert.equal(buildTicketModel(T, "たろう").venueHref, null);
+  assert.equal(buildTicketModel({ ...T, event: null, feeYen: 0 }, "たろう", 0, "https://maps.app.goo.gl/x").venueHref, null);
+});

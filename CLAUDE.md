@@ -170,3 +170,10 @@ PLAYCEが主催するバドミントン・バレーボールなどのスポー�
 - チケットの内容は、カレンダー(イベント)と申込のデータ: 開催日=`startAt`、会場=`venue`、料金=申込時の `feeYen`(既存ルールどおり申込時の料金を維持)、参加者=ログイン中のニックネーム。その競技に参加確定の申込がなければ「参加予定なし」。
 - 保存: `stampCards/{memberId}_{sport}`、`events/{id}/stampTaps/{memberId}`、`stampConfig/default`、`stampTags/{sport}`(すべてサーバー経由のみ。rules は全拒否のまま)。メンバー削除・イベント削除で関連データも削除。コード: `src/lib/domain/stamps.ts`・`stampticket.ts`(純粋関数)、`src/lib/repo/stamps.ts`、`src/app/stamp/`、`src/app/admin/(protected)/stamp/`。
 - テスト: `tests/stamps.test.mjs`(単体14件)、`tests/firestore/stamps.test.mjs`(実Firestore+実HTTP。OFF/二重付与/申込なし/時間外/本人分離/割引/再発行/削除連動/HTTP)。**未確認**: 実機iPhone/AndroidでのNFC読み取り、ホーム画面アプリとSafariでのログイン状態の違い。
+
+## 2026-11-16 追加: 会場のGoogleマップリンク・チケットの「通常料金」(ユーザー要望)
+- 会場名(イベントの「場所」)を押すと、Googleマップが開く(新しいタブ・`rel="noopener noreferrer"`)。場所: カレンダーの選んだ日の開催情報(`EventCard`)、イベント詳細、スタンプのチケット。**カレンダーの一覧表示は、カード全体がイベント詳細へのリンクのため、会場のリンクは付けない**(リンクの入れ子を避けるため)。
+- リンクの決まり方(`src/lib/domain/venues.ts`): ①管理画面「会場」(`/admin/venues`)で登録した地図のURL(会場名の一致は、全角半角・大文字小文字・空白を無視)→ ②登録がなければ、会場名でのGoogleマップ検索(`https://www.google.com/maps/search/?api=1&query=...`)。**登録しなくても、どの会場でも押せる**。あとから、いつでも会場・URLを追加・変更・削除できる。
+- 保存: `venues/{ID}`(会場名・キー・地図URL・更新者。履歴は `history` サブコレクション。サーバー経由のみ)。地図URLは、https の Googleマップ(`www.google.com/maps`、`maps.google.com`、`maps.app.goo.gl`、`goo.gl/maps`、`google.co.jp/maps`)だけ。認証情報つき・他のサイト・http・javascript: は拒否。壊れた登録は無視して検索リンクにする。登録を読めなくても、カレンダーは壊れない(検索リンクにする)。
+- チケット: 割引がないときの「通常料金」は、取り消し線なしで表示(割引があるときの「通常 500円」は、取り消し線のまま)。
+- テスト: `tests/venues.test.mjs`(単体5件)、`tests/firestore/venues.test.mjs`(実Firestore+実HTTP 3件)。

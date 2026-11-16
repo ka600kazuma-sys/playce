@@ -9,6 +9,7 @@ import { getMember } from "@/lib/auth/member";
 import { ensureNumbers, getMyNumbers } from "@/lib/repo/matches";
 import { getMemberRegistration } from "@/lib/repo/registrations";
 import { distributeAt } from "@/lib/domain/numbers";
+import { venueLinks } from "@/lib/repo/venues";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
     return <main className="mx-auto max-w-2xl p-4">読み込めませんでした。時間をおいて再度お試しください。</main>;
   }
   if (!e) notFound();
+  const mapHref = (await venueLinks([e.venue]))[e.venue];
   const participants = e.status === "published" ? await listPublicParticipants([e.id]).catch(() => ({} as Record<string, never>)) : {};
   // 本人の参加番号(確定した申込がある人だけ)。開始1時間前を過ぎていれば、ここでも配布する(アクセス時の遅延実行)。
   const member = await getMember().catch(() => null);
@@ -53,7 +55,7 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
       <dl className="space-y-1 text-sm">
         <div><dt className="inline font-semibold">日時: </dt><dd className="inline">{dateText(e.startAt)} {timeText(e.startAt)}〜{timeText(e.endAt)}</dd></div>
         <div><dt className="inline font-semibold">競技: </dt><dd className="inline">{SPORT_LABEL[e.sport]}</dd></div>
-        <div><dt className="inline font-semibold">場所: </dt><dd className="inline">{e.venue}</dd></div>
+        <div><dt className="inline font-semibold">場所: </dt><dd className="inline"><a href={mapHref} target="_blank" rel="noopener noreferrer" aria-label={`${e.venue}をGoogleマップで開く`} className="text-navy underline underline-offset-2">{e.venue}</a></dd></div>
         <div><dt className="inline font-semibold">参加費: </dt><dd className="inline">{e.feeYen.toLocaleString()}円</dd></div>
         <div><dt className="inline font-semibold">定員: </dt><dd className="inline">{e.capacity ?? "なし"}</dd></div>
         {e.belongings && <div><dt className="inline font-semibold">持ち物: </dt><dd className="inline">{e.belongings}</dd></div>}

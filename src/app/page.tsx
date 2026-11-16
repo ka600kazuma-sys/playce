@@ -4,6 +4,7 @@ import type { PublicParticipants } from "@/lib/domain/participants";
 import type { PublicEvent } from "@/lib/domain/events";
 import { ymd } from "@/lib/format";
 import { CalendarView } from "@/components/CalendarView";
+import { venueLinks } from "@/lib/repo/venues";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +27,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const inMonth = events.filter((e) => ymd(e.startAt).startsWith(ym));
   // 参加表明の一覧は、公開中のイベントだけ。取得できなくても、カレンダー自体は表示する。
   const participants: Record<string, PublicParticipants> = view === "list" ? {} : await listPublicParticipants(inMonth.filter((e) => e.status === "published").map((e) => e.id)).catch(() => ({}));
+  const links = await venueLinks(inMonth.map((e) => e.venue)); // 会場 → Googleマップのリンク(登録がなければ会場名の検索)
   return (
     <main>
       {error && <p role="alert" className="mt-3 rounded-2xl border border-line p-3 text-sm">イベント情報を読み込めませんでした。時間をおいて再度お試しください。</p>}
-      <CalendarView key={`${ym}-${view ?? "month"}`} year={year} month={month} events={inMonth} todayKey={todayKey} nowIso={now.toISOString()} view={view === "list" ? "list" : "month"} participants={participants} />
+      <CalendarView key={`${ym}-${view ?? "month"}`} year={year} month={month} events={inMonth} todayKey={todayKey} nowIso={now.toISOString()} view={view === "list" ? "list" : "month"} participants={participants} venueLinks={links} />
     </main>
   );
 }
