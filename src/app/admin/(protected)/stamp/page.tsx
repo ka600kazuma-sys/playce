@@ -4,6 +4,7 @@ import { adminStampEvents, getTiers } from "@/lib/repo/stamps";
 import { STAMP_SPORTS, STAMP_SPORT_LABEL } from "@/lib/domain/stamps";
 import { dateText, timeText } from "@/lib/format";
 import { CopyButton } from "./CopyButton";
+import { QrCode } from "./QrCode";
 import { reissueTagAction, saveTiersAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
 
       <section className="space-y-2">
         <h2 className="font-semibold">イベントごとのタグ(NFC・QR)</h2>
-        <p className="text-xs text-gray-600">各イベントのURLを、NFCタグに書き込みます(スマホのNFC書き込みアプリで「URL」として書き込む)。参加者がかざすと、スタンプが付きます。開始の3時間前から、終了の6時間後まで読み取れます。URLは他の人に見せないでください。</p>
+        <p className="text-xs text-gray-600">各イベントのURLを、NFCタグに書き込みます(スマホのNFC書き込みアプリで「URL」として書き込む)。同じURLのQRコードも出ます(NFCが使えない端末用)。参加者がかざすと、スタンプが付きます。開始の3時間前から、終了の6時間後まで読み取れます。URLは他の人に見せないでください。</p>
         {events === null && <p className="text-sm text-red-700">読み込めませんでした。</p>}
         {events?.length === 0 && <p className="text-sm text-gray-500">対象のイベント(公開中のバドミントン・バレーボール)がありません。</p>}
         <ul className="space-y-3">
@@ -54,7 +55,8 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
               <li key={e.id} className="space-y-2 rounded border p-3 text-sm">
                 <div className="font-semibold">{e.title} <span className="font-normal text-gray-600">({STAMP_SPORT_LABEL[e.sport]})</span></div>
                 <div className="text-xs text-gray-600">{dateText(e.startAt)} {timeText(e.startAt)}〜 / {e.venue} / タグ第{e.version}版 / スタンプ取得 {e.taps}人</div>
-                {url ? <><code className="block break-all rounded bg-gray-50 p-2 text-xs select-all">{url}</code><CopyButton text={url} /></> : <p className="text-red-700">秘密の設定(FORM_SECRET)がないため、URLを作れません。</p>}
+                {url ? <><code className="block break-all rounded bg-gray-50 p-2 text-xs select-all">{url}</code><CopyButton text={url} />
+                  <div className="space-y-1"><QrCode text={url} label={`${e.title}のタグ用QRコード`} /><p className="text-xs text-gray-600">QRコード(NFCが使えない端末用。印刷して会場に掲示できます)。スマホのカメラで読むと、同じURLが開き、スタンプが付きます。再発行すると、このQRも使えなくなります。</p></div></> : <p className="text-red-700">秘密の設定(FORM_SECRET)がないため、URLを作れません。</p>}
                 <details><summary className="cursor-pointer text-red-700">URLを再発行する</summary>
                   <form action={reissueTagAction.bind(null, e.id)} className="mt-2 space-y-2">
                     <p className="text-xs text-gray-600">古いURL・すでに書き込んだタグは、使えなくなります。タグが盗まれた・URLが漏れたときに使います。</p>
