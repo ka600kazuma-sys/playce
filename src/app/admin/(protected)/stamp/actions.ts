@@ -1,7 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/session";
-import { STAMP_SPORTS } from "@/lib/domain/stamps";
+import { STAMP_SPORTS, isStampSport } from "@/lib/domain/stamps";
 import { bumpTagVersion, setTiers } from "@/lib/repo/stamps";
 
 const num = (v: FormDataEntryValue | null) => Number(String(v ?? "").trim() || "NaN");
@@ -15,11 +15,12 @@ export async function saveTiersAction(fd: FormData) {
   redirect(r === "ok" ? "/admin/stamp?ok=1" : `/admin/stamp?err=${r === "invalid" ? "1" : "2"}`);
 }
 
-// タグURLの再発行。古いURL・すでに書き込んだタグは使えなくなる(確認のチェックが必要)。
-export async function reissueTagAction(eventId: string, fd: FormData) {
+// タグURLの再発行(競技ごと)。古いURL・タグ・QRは使えなくなる(確認のチェックが必要)。
+export async function reissueTagAction(sport: string, fd: FormData) {
   const admin = await requireAdmin();
+  if (!isStampSport(sport)) redirect("/admin/stamp?err=2");
   if (fd.get("confirm") !== "on") redirect("/admin/stamp?err=3");
   let v: number | null = null;
-  try { v = await bumpTagVersion(eventId, admin.email); } catch { v = null; }
+  try { v = await bumpTagVersion(sport, admin.email); } catch { v = null; }
   redirect(v ? "/admin/stamp?ok=2" : "/admin/stamp?err=2");
 }

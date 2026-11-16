@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
       { source: "/contact", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       { source: "/me", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       // スタンプのタグURL(署名つき)は、Referer に漏らさず、キャッシュ・検索登録をしない。スタンプ画面は本人専用のため共有キャッシュに載せない
-      { source: "/stamp/t/:eventId/:token", headers: [
+      { source: "/stamp/t/:sport/:token", headers: [
         { key: "Referrer-Policy", value: "no-referrer" },
         { key: "Cache-Control", value: "no-store" },
         { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },

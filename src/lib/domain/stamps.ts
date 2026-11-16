@@ -76,16 +76,17 @@ export function decideTap(i: TapInput): { result: TapResult; pointsAfter: number
 }
 
 // ---- タグのURL(HMACで署名。DBには版だけ保存し、秘密そのものは保存しない) ----
-// 再発行 = 版を1つ上げる。古い版のURLは検証で落ちる。
-const tagMac = (secret: string, eventId: string, version: number) =>
-  createHmac("sha256", secret).update(`stamp-tag:v1:${eventId}:${version}`).digest("base64url").slice(0, 32);
+// タグは競技ごとに1枚(バドミントン用・バレーボール用)で、毎回同じものを使う。署名の対象は「競技+版」。
+// 再発行 = その競技の版を1つ上げる。古い版のURLは検証で落ちる。別の競技のタグは使えない。
+const tagMac = (secret: string, sport: string, version: number) =>
+  createHmac("sha256", secret).update(`stamp-tag:v2:${sport}:${version}`).digest("base64url").slice(0, 32);
 
-export const tagToken = (secret: string, eventId: string, version: number) => `${version}.${tagMac(secret, eventId, version)}`;
+export const tagToken = (secret: string, sport: string, version: number) => `${version}.${tagMac(secret, sport, version)}`;
 
-export function verifyTagToken(secret: string, eventId: string, currentVersion: number, token: string): boolean {
+export function verifyTagToken(secret: string, sport: string, currentVersion: number, token: string): boolean {
   if (secret.length < 16 || !/^\d{1,6}\.[A-Za-z0-9_-]{32}$/.test(token)) return false;
   const [v, mac] = token.split(".");
   if (Number(v) !== currentVersion) return false;
-  const a = Buffer.from(mac), b = Buffer.from(tagMac(secret, eventId, currentVersion));
+  const a = Buffer.from(mac), b = Buffer.from(tagMac(secret, sport, currentVersion));
   return a.length === b.length && timingSafeEqual(a, b);
 }

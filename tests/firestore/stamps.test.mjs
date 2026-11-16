@@ -31,7 +31,7 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
       for (const sp of ["badminton", "volleyball"]) await db().collection("stampCards").doc(`${id}_${sp}`).delete().catch(() => {});
     }
     for (const h of sessionHashes) await db().collection("memberSessions").doc(h).delete().catch(() => {});
-    for (const id of eventIds) { await db().recursiveDelete(db().collection("events").doc(id)); await db().collection("stampTags").doc(id).delete().catch(() => {}); }
+    for (const id of eventIds) { await db().recursiveDelete(db().collection("events").doc(id)); }
     // 設定の復元(テストで書き換えた場合)
     const cfg = db().collection("stampConfig").doc("default");
     if (cfgBefore.exists) await cfg.set(cfgBefore.data()); else await cfg.delete().catch(() => {});
@@ -43,10 +43,10 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
   const sessionFor = async (m) => { const h = await Mem.getMemberPasswordHash(m.id); const { token } = await Mem.createMemberSession(m.id, h); sessionHashes.push(hashSecret(token)); return token; };
   const iso = (d) => d.toISOString().replace("Z", "+00:00");
   // 申込は、開始前でないとできない。そこで、最初は(これから開催)で作り、申込のあとで、ほしい時刻(offsetHours: 開始が現在から何時間後か)に直す。
-  const want = {};
+  const want = {}, sportOf = {};
   const setTimes = (id, h) => { const start = new Date(Date.now() + h * 3600e3), end = new Date(start.getTime() + 2 * 3600e3); return db().collection("events").doc(id).update({ startAt: iso(start), endAt: iso(end) }); };
   const mkEvent = async ({ sport = "badminton", offsetHours = -1, status = "published", fee = 500 } = {}) => {
-    const id = `zz_test_${rnd()}`; want[id] = offsetHours;
+    const id = `zz_test_${rnd()}`; want[id] = offsetHours; sportOf[id] = sport;
     const h = offsetHours > 0 ? offsetHours : 2, start = new Date(Date.now() + h * 3600e3), end = new Date(start.getTime() + 2 * 3600e3);
     await db().collection("events").doc(id).set({ title: "【自動テスト】スタンプ", sport, venue: "テスト会場", startAt: iso(start), endAt: iso(end), feeYen: fee, capacity: 20, belongings: "", notes: "", status });
     eventIds.push(id); return id;
@@ -59,7 +59,7 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
   // 申込がすんだら、ほしい時刻に直す(複数人が申し込んだあとに、1回だけ)。
   const settled = new Set();
   const settle = async (e) => { if (!settled.has(e)) { settled.add(e); await setTimes(e, want[e]); } };
-  const tp = async (m, e) => { await settle(e); return S.tap(m.id, e, await S.currentTagToken(e)); };
+  const tp = async (m, e) => { await settle(e); return S.tap(m.id, e, await S.currentTagToken(sportOf[e] ?? "badminton")); };
   const regOf = async (eid, m) => { const s = await db().collection("events").doc(eid).collection("registrations").where("memberId", "==", m.id).get(); return { id: s.docs[0].id, ...s.docs[0].data() }; };
   const pts = async (m, sport = "badminton") => (await S.getCards(m.id))[sport].points;
   const T = { timeout: 120_000 };
@@ -105,7 +105,7 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal((await tp(m, late)).result, "late");
     assert.equal((await tp(m, other)).result, "unsupported");
     assert.equal((await tp(m, draft)).result, "invalid");
-    assert.equal((await S.tap(m.id, "zz_test_not_exist", "1.x")).result, "bad", "存在しないイベントは、署名が合わない扱い(存在を教えない)");
+    assert.equal((await S.tap(m.id, "zz_test_not_exist", "1.x")).result, "invalid");
     assert.equal((await S.tap(m.id, "../x", "1.x")).result, "invalid");
     assert.equal(await pts(m), 0);
   });
@@ -194,17 +194,16 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.ok(hist.size >= 1, "履歴が残る");
   });
 
-  test("タグのURL: 正しいものだけ通る。再発行で古いURLが使えなくなる。存在しないイベントは再発行できない", T, async () => {
-    const e = await mkEvent(), e2 = await mkEvent();
-    const t1 = await S.currentTagToken(e);
-    assert.ok(t1.startsWith("1."));
-    assert.equal(await S.verifyTag(e, t1), true);
-    assert.equal(await S.verifyTag(e2, t1), false, "別のイベントのタグは使えない");
-    assert.equal(await S.verifyTag(e, t1.slice(0, -2) + "xx"), false);
-    assert.equal(await S.bumpTagVersion(e, "test"), 2);
-    assert.equal(await S.verifyTag(e, t1), false, "再発行後、古いURLは使えない");
-    assert.equal(await S.verifyTag(e, await S.currentTagToken(e)), true);
-    assert.equal(await S.bumpTagVersion("zz_test_not_exist", "test"), null);
+  test("タグのURL(競技ごとに1枚): 正しいものだけ通る。別の競技のタグ・改ざんは通らない。再発行で古いURLが使えなくなる", T, async () => {
+    const t1 = await S.currentTagToken("badminton"), v1 = await S.currentTagToken("volleyball");
+    assert.equal(t1, await S.currentTagToken("badminton"), "毎回同じURL");
+    assert.ok(/^\d+\./.test(t1));
+    assert.equal(await S.verifyTag("badminton", t1), true);
+    assert.equal(await S.verifyTag("volleyball", t1), false, "別の競技のタグは使えない");
+    assert.equal(await S.verifyTag("badminton", v1), false);
+    assert.equal(await S.verifyTag("badminton", t1.slice(0, -2) + "xx"), false);
+    assert.equal(await S.verifyTag("other", t1), false, "対象外の競技");
+    assert.equal(await S.bumpTagVersion("other", "test"), null);
     assert.equal(await S.bumpTagVersion("../x", "test"), null);
   });
 
@@ -229,14 +228,22 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal(await S.applyStampDiscount(y, ry.id, "test"), "no_discount", "Yは4ポイント目の回で割引なし");
   });
 
-  test("再発行のあと、古いURLでは付かない(付与と同じトランザクションで版を確認)", T, async () => {
+  test("再発行のあと、古いURLでは付かない(付与と同じトランザクションで版を確認)。テストのあとで版を元に戻す", T, async () => {
     const m = await mkMember("M"), e = await mkEvent(); await apply(e, m); await S.setEnabled(m.id, "badminton", true); await settle(e);
-    const old = await S.currentTagToken(e);
-    await S.bumpTagVersion(e, "test");
-    assert.equal((await S.tap(m.id, e, old)).result, "bad");
-    assert.equal(await pts(m), 0);
-    assert.equal((await S.tap(m.id, e, await S.currentTagToken(e))).result, "ok");
-    assert.equal((await S.tap(m.id, e, "")).result, "bad");
+    const old = await S.currentTagToken("badminton");
+    const hist = db().collection("stampTags").doc("badminton");
+    const before = await hist.get();
+    try {
+      await S.bumpTagVersion("badminton", "test");
+      assert.equal((await S.tap(m.id, e, old)).result, "bad");
+      assert.equal((await S.tapBySport(m.id, "badminton", old)).result, "bad");
+      assert.equal(await pts(m), 0);
+      assert.equal((await S.tapBySport(m.id, "badminton", await S.currentTagToken("badminton"))).result, "ok");
+      assert.equal((await S.tap(m.id, e, "")).result, "bad");
+    } finally {
+      if (before.exists) await hist.set(before.data()); else await hist.delete();
+      const h = await hist.collection("history").where("at", ">=", startedAt).get(); for (const d of h.docs) await d.ref.delete();
+    }
   });
 
   test("チケットの参加費は、割引前の額(申込時の料金)で渡し、適用済みの割引は別に返す(二重に引かない)", T, async () => {
@@ -251,23 +258,66 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     const m = await mkMember("O"), e = await mkEvent(); await apply(e, m); await S.setEnabled(m.id, "badminton", true); await settle(e);
     assert.equal(await Mem.deleteMemberRecord(m.id, "test", 0), "ok");
     assert.equal(await S.setEnabled(m.id, "badminton", true), false, "削除後は、カードを作れない");
-    assert.equal((await S.tap(m.id, e, await S.currentTagToken(e))).result, "invalid", "削除後は、付与できない");
+    assert.equal((await S.tap(m.id, e, await S.currentTagToken("badminton"))).result, "invalid", "削除後は、付与できない");
     assert.equal((await db().collection("stampCards").doc(`${m.id}_badminton`).get()).exists, false);
     assert.equal((await db().collection("events").doc(e).collection("stampTaps").doc(m.id).get()).exists, false);
+  });
+
+  test("競技のタグ(毎回同じ): かざした人が申し込んでいる、開催中のイベントに付く。同時に複数あれば、開始の早い順に、未取得のものへ", T, async () => {
+    const m = await mkMember("P"), x = await mkEvent({ offsetHours: -1 }), y = await mkEvent({ offsetHours: -0.5 }), other = await mkEvent({ offsetHours: -1 });
+    await apply(x, m); await apply(y, m); await settle(x); await settle(y); await settle(other); // other は申し込まない
+    await S.setEnabled(m.id, "badminton", true);
+    const tk = await S.currentTagToken("badminton");
+    assert.deepEqual(await S.tapBySport(m.id, "badminton", tk), { result: "ok", sport: "badminton", points: 1 });
+    assert.equal((await db().collection("events").doc(x).collection("stampTaps").doc(m.id).get()).exists, true, "開始の早いXに付く");
+    assert.deepEqual(await S.tapBySport(m.id, "badminton", tk), { result: "ok", sport: "badminton", points: 2 }, "同じタグで、次はY");
+    assert.equal((await db().collection("events").doc(y).collection("stampTaps").doc(m.id).get()).exists, true);
+    assert.equal((await S.tapBySport(m.id, "badminton", tk)).result, "already", "開催中の分はすべて取得済み");
+    assert.equal((await db().collection("events").doc(other).collection("stampTaps").doc(m.id).get()).exists, false, "申し込んでいないイベントには付かない");
+    assert.equal(await pts(m), 2);
+  });
+
+  test("競技のタグ: 開催前=early・終了後=late・申込なし/別の競技=noreg・OFF=off。不正な競技・署名は何もしない", T, async () => {
+    const tk = await S.currentTagToken("badminton");
+    const a = await mkMember("Q1"), early = await mkEvent({ offsetHours: 24 }); await apply(early, a); await S.setEnabled(a.id, "badminton", true);
+    assert.equal((await S.tapBySport(a.id, "badminton", tk)).result, "early");
+    const b = await mkMember("Q2"), late = await mkEvent({ offsetHours: -48 }); await apply(late, b); await settle(late); await S.setEnabled(b.id, "badminton", true);
+    assert.equal((await S.tapBySport(b.id, "badminton", tk)).result, "late");
+    const c = await mkMember("Q3"); await S.setEnabled(c.id, "badminton", true);
+    assert.equal((await S.tapBySport(c.id, "badminton", tk)).result, "noreg", "申込なし");
+    const d = await mkMember("Q4"), vb = await mkEvent({ sport: "volleyball", offsetHours: -1 }); await apply(vb, d); await settle(vb); await S.setEnabled(d.id, "badminton", true);
+    assert.equal((await S.tapBySport(d.id, "badminton", tk)).result, "noreg", "バレーの申込は、バドのタグでは付かない");
+    assert.equal((await S.tapBySport(d.id, "volleyball", tk)).result, "bad", "バドのタグは、バレーには使えない");
+    const f = await mkMember("Q5"), off = await mkEvent({ offsetHours: -1 }); await apply(off, f); await settle(off);
+    assert.equal((await S.tapBySport(f.id, "badminton", tk)).result, "off", "ONにしていない");
+    assert.equal((await S.tapBySport(f.id, "other", tk)).result, "invalid");
+    assert.equal((await S.tapBySport(f.id, "badminton", "1.x")).result, "bad");
+    assert.equal((await S.tapBySport("../x", "badminton", tk)).result, "invalid");
+    assert.equal((await pts(a)) + (await pts(b)) + (await pts(c)) + (await pts(d)) + (await pts(f)), 0);
+  });
+
+  test("競技のタグ: 検索の範囲(開始14日先まで・終了3日前まで)の外は、early/late ではなく noreg(仕様)。範囲外の申込が混ざっていても、開催中のものに付く", T, async () => {
+    const tk = await S.currentTagToken("badminton");
+    const m2 = await mkMember("R2"), far2 = await mkEvent({ offsetHours: 24 * 15 }), old2 = await mkEvent({ offsetHours: -24 * 4 });
+    await apply(far2, m2); await apply(old2, m2); await settle(far2); await settle(old2); await S.setEnabled(m2.id, "badminton", true);
+    assert.equal((await S.tapBySport(m2.id, "badminton", tk)).result, "noreg", "15日先・4日前は範囲外");
+    const m = await mkMember("R"), far = await mkEvent({ offsetHours: 24 * 15 }), cur = await mkEvent({ offsetHours: -1 });
+    await apply(far, m); await apply(cur, m); await settle(far); await settle(cur); await S.setEnabled(m.id, "badminton", true);
+    assert.equal((await S.tapBySport(m.id, "badminton", tk)).result, "ok", "範囲外の申込が混ざっていても、開催中のイベントに付く");
   });
 
   test("HTTP: タグのURLは、未ログインはログインへ・無効な署名は何もしない・ログイン中なら付与。画面は本人の分だけ", { timeout: 240_000 }, async () => {
     for (let i = 0; i < 60; i++) { try { const r = await fetch(`${BASE}/`, { redirect: "manual" }); if (r.status === 200) break; } catch {} await sleep(1000); }
     const get = (path, cookie) => fetch(`${BASE}${path}`, { redirect: "manual", headers: cookie ? { cookie } : {} });
     const m = await mkMember("J"), e = await mkEvent(); await apply(e, m); await S.setEnabled(m.id, "badminton", true);
-    await settle(e); const tk = await S.currentTagToken(e), path = `/stamp/t/${e}/${tk}`;
+    await settle(e); const tk = await S.currentTagToken("badminton"), path = `/stamp/t/badminton/${tk}`;
     const anon = await get(path);
     assert.equal(anon.status, 307);
     assert.match(anon.headers.get("location"), new RegExp(`^/login\\?next=${encodeURIComponent(path).replaceAll(".", "\\.")}$`));
     assert.equal(anon.headers.get("referrer-policy"), "no-referrer");
     assert.match(anon.headers.get("cache-control") ?? "", /no-store/);
     const cookie = `playce_member=${await sessionFor(m)}`;
-    const bad = await get(`/stamp/t/${e}/1.${"A".repeat(32)}`, cookie);
+    const bad = await get(`/stamp/t/badminton/1.${"A".repeat(32)}`, cookie);
     assert.match(bad.headers.get("location"), /\?tap=bad$/);
     assert.equal(await pts(m), 0, "無効な署名では付かない");
     const ok = await get(path, cookie);
@@ -284,6 +334,8 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     const other = await mkMember("K"); const oc = `playce_member=${await sessionFor(other)}`;
     const faked = await (await get("/stamp?tap=ok&sport=badminton", oc)).text();
     assert.ok(!faked.includes("THANK"), "押されていない人のチケットにハンコは出ない");
+    assert.match((await get(`/stamp/t/other/${tk}`, cookie)).headers.get("location"), /\?tap=bad$/, "対象外の競技のタグ");
+    assert.match((await get(`/stamp/t/volleyball/${tk}`, cookie)).headers.get("location"), /\?tap=bad$/, "バドのタグはバレーでは使えない");
     // ?tap= に変な値(継承プロパティ名・配列)を入れても、エラーにならない
     for (const q of ["__proto__", "constructor", "toString", "x&tap=y"]) { const r = await get(`/stamp?tap=${q}`, cookie); assert.equal(r.status, 200, q); }
     // 未ログインの画面

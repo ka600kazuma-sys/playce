@@ -100,6 +100,5 @@ export async function deleteEvent(id: string, by: string): Promise<"ok" | "not_f
   await db().collection("eventDeletions").doc(`${id}_${Date.now()}`).set({ eventId: id, title: d.title ?? "", startAt: d.startAt ?? "", by, at: Date.now(), registrations: info.registrations, activeRegistrations: info.activeRegistrations });
   await db().recursiveDelete(ref);
   await db().collection("accounting").doc(id).delete();
-  await db().collection("stampTags").doc(id).delete().catch((e) => console.error("stampTags delete", e instanceof Error ? e.message : e)); // スタンプのタグの版(かざした記録は、上の recursiveDelete で消える)
   return "ok";
 }

@@ -75,24 +75,26 @@ test("OFFの人はポイントが貯まらない(さかのぼりもしない)", 
 
 const SECRET = randomBytes(24).toString("hex"); // テスト用の秘密は、実行のたびに作る(固定の文字列を書かない)
 const OTHER = randomBytes(24).toString("hex");
-test("タグのURL: 正しいトークンだけ通る。版・イベント・秘密が違うと落ちる", () => {
-  const tk = tagToken(SECRET, "evt1", 1);
+test("タグのURL: 正しいトークンだけ通る。版・競技・秘密が違うと落ちる(競技ごとに1枚)", () => {
+  const tk = tagToken(SECRET, "badminton", 1);
   assert.match(tk, /^1\.[A-Za-z0-9_-]{32}$/);
-  assert.equal(verifyTagToken(SECRET, "evt1", 1, tk), true);
-  assert.equal(verifyTagToken(SECRET, "evt2", 1, tk), false, "別のイベントのタグは使えない");
-  assert.equal(verifyTagToken(OTHER, "evt1", 1, tk), false);
-  assert.equal(verifyTagToken(SECRET, "evt1", 2, tk), false, "再発行後は古いURLが使えない");
-  assert.equal(verifyTagToken(SECRET, "evt1", 1, tk.slice(0, -1) + (tk.endsWith("A") ? "B" : "A")), false, "改ざん");
-  assert.equal(verifyTagToken(SECRET, "evt1", 1, "1.short"), false);
-  assert.equal(verifyTagToken(SECRET, "evt1", 1, ""), false);
-  assert.equal(verifyTagToken("short", "evt1", 1, tagToken("short", "evt1", 1)), false, "短すぎる秘密では常に拒否");
+  assert.equal(verifyTagToken(SECRET, "badminton", 1, tk), true);
+  assert.equal(verifyTagToken(SECRET, "volleyball", 1, tk), false, "別の競技のタグは使えない");
+  assert.equal(verifyTagToken(OTHER, "badminton", 1, tk), false);
+  assert.equal(verifyTagToken(SECRET, "badminton", 2, tk), false, "再発行後は古いURLが使えない");
+  assert.equal(verifyTagToken(SECRET, "badminton", 1, tk.slice(0, -1) + (tk.endsWith("A") ? "B" : "A")), false, "改ざん");
+  assert.equal(verifyTagToken(SECRET, "badminton", 1, "1.short"), false);
+  assert.equal(verifyTagToken(SECRET, "badminton", 1, ""), false);
+  assert.equal(verifyTagToken("short", "badminton", 1, tagToken("short", "badminton", 1)), false, "短すぎる秘密では常に拒否");
 });
 
-test("再発行すると、新しい版のURLが使え、古い版は使えない", () => {
-  const v1 = tagToken(SECRET, "evt1", 1), v2 = tagToken(SECRET, "evt1", 2);
+test("タグは毎回同じ(同じ競技・同じ版なら、何度作っても同じURL)。再発行すると新しい版だけが使える", () => {
+  assert.equal(tagToken(SECRET, "badminton", 1), tagToken(SECRET, "badminton", 1));
+  const v1 = tagToken(SECRET, "badminton", 1), v2 = tagToken(SECRET, "badminton", 2);
   assert.notEqual(v1, v2);
-  assert.equal(verifyTagToken(SECRET, "evt1", 2, v2), true);
-  assert.equal(verifyTagToken(SECRET, "evt1", 2, v1), false);
+  assert.equal(verifyTagToken(SECRET, "badminton", 2, v2), true);
+  assert.equal(verifyTagToken(SECRET, "badminton", 2, v1), false);
+  assert.notEqual(tagToken(SECRET, "badminton", 1), tagToken(SECRET, "volleyball", 1));
 });
 
 import { buildTicketModel, TAP_NOTICE } from "../src/lib/domain/stampticket.ts";
@@ -136,5 +138,5 @@ test("チケット: 参加予定なしのときは、開催情報・料金を出
   assert.equal(buildTicketModel({ ...T, partySize: 3 }, "たろう").participant, "たろう ほか2名");
 });
 test("かざした結果の案内文が、すべての結果に用意されている", () => {
-  for (const k of ["off", "noreg", "already", "early", "late", "unsupported", "invalid", "bad"]) assert.ok(TAP_NOTICE[k], k);
+  for (const k of ["off", "noreg", "already", "early", "late", "unsupported", "invalid", "bad", "retry", "busy"]) assert.ok(TAP_NOTICE[k], k);
 });

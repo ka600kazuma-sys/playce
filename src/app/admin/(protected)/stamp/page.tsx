@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth/session";
-import { adminStampEvents, getTiers } from "@/lib/repo/stamps";
+import { adminStampEvents, adminStampTags, getTiers } from "@/lib/repo/stamps";
 import { STAMP_SPORTS, STAMP_SPORT_LABEL } from "@/lib/domain/stamps";
 import { dateText, timeText } from "@/lib/format";
 import { CopyButton } from "./CopyButton";
@@ -18,12 +18,12 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
   const h = await headers();
   const host = h.get("host") ?? "";
   const proto = h.get("x-forwarded-proto")?.split(",")[0] ?? (/^(localhost|127\.)/.test(host) ? "http" : "https");
-  const [tiers, events] = await Promise.all([getTiers(), adminStampEvents().catch(() => null)]);
+  const [tiers, tags, events] = await Promise.all([getTiers(), adminStampTags(), adminStampEvents().catch(() => null)]);
   return (
     <main className="space-y-4">
       <h1 className="text-xl font-bold">スタンプカード</h1>
       {sp.ok === "1" && <p className="rounded border p-3 text-sm">割引額を保存しました(履歴に残ります)。</p>}
-      {sp.ok === "2" && <p className="rounded border p-3 text-sm">タグのURLを再発行しました。古いURL・タグは使えません。新しいURLをタグに書き込んでください。</p>}
+      {sp.ok === "2" && <p className="rounded border p-3 text-sm">タグのURLを再発行しました。古いURL・タグ・QRは使えません。新しいURLをタグに書き込み直してください。</p>}
       {sp.err && <p role="alert" className="rounded border border-red-400 p-3 text-sm">{ERR[sp.err] ?? ERR["2"]}</p>}
 
       <form action={saveTiersAction} className="space-y-3 rounded border p-3">
@@ -44,22 +44,27 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
       </form>
 
       <section className="space-y-2">
-        <h2 className="font-semibold">イベントごとのタグ(NFC・QR)</h2>
-        <p className="text-xs text-gray-600">各イベントのURLを、NFCタグに書き込みます(スマホのNFC書き込みアプリで「URL」として書き込む)。同じURLのQRコードも出ます(NFCが使えない端末用)。参加者がかざすと、スタンプが付きます。開始の3時間前から、終了の6時間後まで読み取れます。URLは他の人に見せないでください。</p>
-        {events === null && <p className="text-sm text-red-700">読み込めませんでした。</p>}
-        {events?.length === 0 && <p className="text-sm text-gray-500">対象のイベント(公開中のバドミントン・バレーボール)がありません。</p>}
+        <h2 className="font-semibold">スタンプのタグ(NFC・QR)― 競技ごとに1枚、毎回同じものを使います</h2>
+        <p className="text-xs text-gray-600">バドミントン用・バレーボール用に、それぞれ1枚のタグを作ります(スマホのNFC書き込みアプリで、下のURLを「URL」として書き込む)。イベントごとに書き直す必要はありません。参加者がかざすと、その人が参加確定で申し込んでいる、開催中のイベントにスタンプが付きます(開始の3時間前から、終了の6時間後まで)。URLは他の人に見せないでください。QRコードは、NFCが使えない端末用です(掲示する場合は、開催時間中だけにしてください)。</p>
         <ul className="space-y-3">
-          {events?.map((e) => {
-            const url = e.token ? `${proto}://${host}/stamp/t/${e.id}/${e.token}` : "";
+          {tags.map((t) => {
+            const url = t.token ? `${proto}://${host}/stamp/t/${t.sport}/${t.token}` : "";
             return (
-              <li key={e.id} className="space-y-2 rounded border p-3 text-sm">
-                <div className="font-semibold">{e.title} <span className="font-normal text-gray-600">({STAMP_SPORT_LABEL[e.sport]})</span></div>
-                <div className="text-xs text-gray-600">{dateText(e.startAt)} {timeText(e.startAt)}〜 / {e.venue} / タグ第{e.version}版 / スタンプ取得 {e.taps}人</div>
-                {url ? <><code className="block break-all rounded bg-gray-50 p-2 text-xs select-all">{url}</code><CopyButton text={url} />
-                  <div className="space-y-1"><QrCode text={url} label={`${e.title}のタグ用QRコード`} /><p className="text-xs text-gray-600">QRコード(NFCが使えない端末用。印刷して会場に掲示できます)。スマホのカメラで読むと、同じURLが開き、スタンプが付きます。再発行すると、このQRも使えなくなります。</p></div></> : <p className="text-red-700">秘密の設定(FORM_SECRET)がないため、URLを作れません。</p>}
+              <li key={t.sport} className="space-y-2 rounded border p-3 text-sm">
+                <div className="font-semibold">{STAMP_SPORT_LABEL[t.sport]}用のタグ <span className="text-xs font-normal text-gray-600">(第{t.version}版)</span></div>
+                {url ? (
+                  <>
+                    <code className="block break-all rounded bg-gray-50 p-2 text-xs select-all">{url}</code>
+                    <CopyButton text={url} />
+                    <div className="space-y-1">
+                      <QrCode text={url} label={`${STAMP_SPORT_LABEL[t.sport]}用のタグのQRコード`} />
+                      <p className="text-xs text-gray-600">スマホのカメラで読むと、タグと同じURLが開き、スタンプが付きます。再発行すると、このQRも使えなくなります。</p>
+                    </div>
+                  </>
+                ) : <p className="text-red-700">秘密の設定(FORM_SECRET)がないため、URLを作れません。</p>}
                 <details><summary className="cursor-pointer text-red-700">URLを再発行する</summary>
-                  <form action={reissueTagAction.bind(null, e.id)} className="mt-2 space-y-2">
-                    <p className="text-xs text-gray-600">古いURL・すでに書き込んだタグは、使えなくなります。タグが盗まれた・URLが漏れたときに使います。</p>
+                  <form action={reissueTagAction.bind(null, t.sport)} className="mt-2 space-y-2">
+                    <p className="text-xs text-gray-600">古いURL・すでに書き込んだタグ・QRは、使えなくなります。タグが盗まれた・URLが漏れたときに使います。</p>
                     <label className="flex items-center gap-2"><input type="checkbox" name="confirm" className="h-5 w-5" /> 古いタグが使えなくなることを確認しました</label>
                     <button className="rounded border border-red-400 px-3 py-2 text-red-700">再発行する</button>
                   </form>
@@ -67,6 +72,20 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
               </li>
             );
           })}
+        </ul>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="font-semibold">イベントごとのスタンプ取得人数</h2>
+        {events === null && <p className="text-sm text-red-700">読み込めませんでした。</p>}
+        {events?.length === 0 && <p className="text-sm text-gray-500">対象のイベント(公開中のバドミントン・バレーボール)がありません。</p>}
+        <ul className="space-y-1 text-sm">
+          {events?.map((e) => (
+            <li key={e.id} className="rounded border p-2">
+              <span className="font-semibold">{e.title}</span> <span className="text-gray-600">({STAMP_SPORT_LABEL[e.sport]})</span>
+              <div className="text-xs text-gray-600">{dateText(e.startAt)} {timeText(e.startAt)}〜 / {e.venue} / スタンプ取得 {e.taps}人</div>
+            </li>
+          ))}
         </ul>
       </section>
     </main>

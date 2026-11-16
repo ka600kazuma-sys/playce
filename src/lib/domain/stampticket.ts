@@ -60,11 +60,13 @@ export function buildTicketModel(t: TicketInput, nickname: string, newIndex = 0)
 // かざした結果(?tap=...)の、チケット上に出す短い案内。
 export const TAP_NOTICE: Record<string, string> = {
   off: "スタンプカードがOFFのため、スタンプは押されませんでした",
-  noreg: "参加確定の申込がありません",
+  noreg: "いま開催中の、参加確定の申込がありません",
   already: "本日は取得済みです",
   early: "まだ開始前です(開始の3時間前から読み取れます)",
   late: "このイベントの受付は終了しました",
   unsupported: "このイベントは、スタンプの対象外です",
   invalid: "このタグは使えません",
+  retry: "読み取れませんでした。もう一度かざしてください",
+  busy: "アクセスが集中しています。少し待って、もう一度かざしてください",
   bad: "このタグは無効です。主催者にお知らせください",
 };

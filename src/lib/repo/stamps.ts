@@ -13,14 +13,14 @@ import { getMemberRegistration } from "@/lib/repo/registrations";
 //   stampCards/{メンバーID}_{競技}        … { memberId, sport, enabled, points(0〜5), createdAt, updatedAt, enabledAt? } 本人と主催者だけが読む
 //   events/{イベントID}/stampTaps/{メンバーID} … タグをかざした記録(1イベント1人1件。作成は1回だけ=二重付与の防止)
 //   stampConfig/default                   … { tiers: 割引額, updatedAt, updatedBy } (+ history サブコレクション)
-//   stampTags/{イベントID}                … { version }(タグURLの版。再発行で+1)
+//   stampTags/{競技}                      … { version }(タグURLの版。競技ごとに1枚。再発行で+1。history サブコレクションに履歴)
 // メンバーIDは、必ず呼び出し側がログインのセッションから取り出したものを渡す(画面・リクエストの値は使わない)。
 const validId = (id: string) => /^[A-Za-z0-9_-]{1,64}$/.test(id);
 const cardRef = (memberId: string, sport: StampSport) => db().collection("stampCards").doc(`${memberId}_${sport}`);
 const eventRef = (eventId: string) => db().collection("events").doc(eventId);
 const tapRef = (eventId: string, memberId: string) => eventRef(eventId).collection("stampTaps").doc(memberId);
 const configRef = () => db().collection("stampConfig").doc("default");
-const tagRef = (eventId: string) => db().collection("stampTags").doc(eventId);
+const tagRef = (sport: StampSport) => db().collection("stampTags").doc(sport);
 
 export type Card = { enabled: boolean; points: number };
 const cardOf = (d: FirebaseFirestore.DocumentData | undefined): Card => {
@@ -76,56 +76,55 @@ export async function setEnabled(memberId: string, sport: StampSport, enabled: b
   });
 }
 
-// ---- タグ(URLの版と検証) ----
-export async function getTagVersion(eventId: string): Promise<number> {
-  if (!validId(eventId)) return 1;
-  const v = (await tagRef(eventId).get()).data()?.version;
+// ---- タグ(競技ごとに1枚。URLの版と検証) ----
+// タグは、競技ごと(バドミントン用・バレーボール用)に、毎回同じものを使う。かざしたとき、その人が参加確定で申し込んでいる、いま開催中のイベントを探して付与する。
+export async function getTagVersion(sport: string): Promise<number> {
+  if (!isStampSport(sport)) return 1;
+  const v = (await tagRef(sport).get()).data()?.version;
   return Number.isInteger(v) && v >= 1 ? v : 1;
 }
-export async function currentTagToken(eventId: string): Promise<string> {
+export async function currentTagToken(sport: string): Promise<string> {
   const secret = formSecret();
-  return secret ? tagToken(secret, eventId, await getTagVersion(eventId)) : "";
+  return secret && isStampSport(sport) ? tagToken(secret, sport, await getTagVersion(sport)) : "";
 }
-export async function verifyTag(eventId: string, token: string): Promise<boolean> {
+export async function verifyTag(sport: string, token: string): Promise<boolean> {
   const secret = formSecret();
-  if (!secret || !validId(eventId)) return false;
-  return verifyTagToken(secret, eventId, await getTagVersion(eventId), token);
+  if (!secret || !isStampSport(sport)) return false;
+  return verifyTagToken(secret, sport, await getTagVersion(sport), token);
 }
-// 再発行(主催者専用。呼び出し側で requireAdmin() を済ませること)。古いURL・タグは使えなくなる。
-export async function bumpTagVersion(eventId: string, by: string): Promise<number | null> {
-  if (!validId(eventId)) return null;
+// 再発行(主催者専用。呼び出し側で requireAdmin() を済ませること)。古いURL・タグ・QRは使えなくなる。
+export async function bumpTagVersion(sport: string, by: string): Promise<number | null> {
+  if (!isStampSport(sport)) return null;
   return db().runTransaction(async (tx) => {
-    const e = await tx.get(eventRef(eventId));
-    if (!e.exists) return null;
-    const s = await tx.get(tagRef(eventId));
+    const s = await tx.get(tagRef(sport));
     const cur = Number.isInteger(s.data()?.version) && s.data()!.version >= 1 ? (s.data()!.version as number) : 1;
-    tx.set(tagRef(eventId), { version: cur + 1, updatedAt: Date.now(), updatedBy: by });
-    tx.set(eventRef(eventId).collection("audit").doc(), { at: Date.now(), by, action: "stamp_tag_reissue", from: cur, to: cur + 1 });
+    tx.set(tagRef(sport), { version: cur + 1, updatedAt: Date.now(), updatedBy: by });
+    tx.set(tagRef(sport).collection("history").doc(), { at: Date.now(), by, action: "reissue", from: cur, to: cur + 1 });
     return cur + 1;
   });
 }
 
 // ---- タグをかざす(ポイントの付与) ----
 export type TapOutcome = { result: TapResult; sport?: StampSport; points?: number };
-// token: タグURLの署名。付与と同じトランザクションで、現行の版かどうかを確認する(再発行との競合で、古いURLが通らないように)。
+// 1つのイベントへの付与。token: 競技のタグの署名。付与と同じトランザクションで、現行の版かどうかを確認する(再発行との競合で、古いURLが通らないように)。
 export async function tap(memberId: string, eventId: string, token: string, now = Date.now()): Promise<TapOutcome> {
   if (!validId(memberId) || !validId(eventId)) return { result: "invalid" };
   const secret = formSecret();
   return db().runTransaction(async (tx): Promise<TapOutcome> => {
-    const tagSnap = await tx.get(tagRef(eventId));
-    const ver = Number.isInteger(tagSnap.data()?.version) && tagSnap.data()!.version >= 1 ? (tagSnap.data()!.version as number) : 1;
-    if (!secret || !verifyTagToken(secret, eventId, ver, token)) return { result: "bad" };
     const evSnap = await tx.get(eventRef(eventId));
     const parsed = eventSchema.safeParse(evSnap.data());
     if (!parsed.success || parsed.data.status !== "published") return { result: "invalid" };
     const ev = parsed.data;
     if (!isStampSport(ev.sport)) return { result: "unsupported" };
-    const [mem, regs, card, done] = await Promise.all([
+    const [tagSnap, mem, regs, card, done] = await Promise.all([
+      tx.get(tagRef(ev.sport)),
       tx.get(db().collection("members").doc(memberId)),
       tx.get(eventRef(eventId).collection("registrations").where("memberId", "==", memberId)),
       tx.get(cardRef(memberId, ev.sport)),
       tx.get(tapRef(eventId, memberId)),
     ]);
+    const ver = Number.isInteger(tagSnap.data()?.version) && tagSnap.data()!.version >= 1 ? (tagSnap.data()!.version as number) : 1;
+    if (!secret || !verifyTagToken(secret, ev.sport, ver, token)) return { result: "bad" };
     if (!mem.exists) return { result: "invalid" };
     const confirmed = regs.docs.filter((d) => d.data().status === "confirmed").sort((a, b) => (b.data().createdAt ?? 0) - (a.data().createdAt ?? 0))[0];
     const c = cardOf(card.data());
@@ -137,6 +136,35 @@ export async function tap(memberId: string, eventId: string, token: string, now 
     tx.update(cardRef(memberId, ev.sport), { points: d.pointsAfter, lastTapAt: now, updatedAt: now });
     return { result: "ok", sport: ev.sport, points: d.pointsAfter };
   });
+}
+
+// 競技のタグをかざしたとき: その人が参加確定で申し込んでいる、いま開催中(タグを読める時間内)のイベントを探して付与する。
+// 開催中のイベントがなければ、まだ先(early)・終わった(late)・申込なし(noreg)を返す。同じ日に複数あるときは、開始の早い順に、まだ付いていないものへ付ける。
+const DAY = 864e5;
+export async function tapBySport(memberId: string, sport: string, token: string, now = Date.now()): Promise<TapOutcome> {
+  if (!validId(memberId) || !isStampSport(sport)) return { result: "invalid" };
+  if (!(await verifyTag(sport, token))) return { result: "bad", sport };
+  // 調べるのは、開始が14日先まで・終了から3日前までのイベント(これより外は「early/late」の案内の対象にしない)。
+  // 問い合わせの数を抑えるため、いまに近い順に30件まで(タグを読める開催中のものは、いまにいちばん近いので、落ちない)。
+  const events = (await listPublicEvents()).filter((e) => e.sport === sport && e.status === "published"
+    && new Date(e.startAt).getTime() <= now + 14 * DAY && new Date(e.endAt).getTime() + TAP_AFTER_MS + 3 * DAY >= now)
+    .sort((a, b) => Math.abs(new Date(a.startAt).getTime() - now) - Math.abs(new Date(b.startAt).getTime() - now)).slice(0, 30);
+  // 申込の読み取りに失敗したら、付与先を決められないので、そのまま失敗させる(別のイベントへ付けない)。
+  const registered = (await Promise.all(events.map(async (e) => {
+    const snap = await eventRef(e.id).collection("registrations").where("memberId", "==", memberId).get();
+    return snap.docs.some((d) => d.data().status === "confirmed") ? e : null;
+  }))).filter((e): e is NonNullable<typeof e> => e !== null);
+  const open = registered.filter((e) => tapWindow(e, now) === "open").sort((a, b) => a.startAt.localeCompare(b.startAt));
+  let last: TapOutcome | null = null;
+  for (const e of open) {
+    const r = await tap(memberId, e.id, token, now);
+    if (r.result !== "already") return r;
+    last = r;
+  }
+  if (last) return last; // 開催中のイベントは、すべて取得済み
+  if (registered.some((e) => tapWindow(e, now) === "early")) return { result: "early", sport };
+  if (registered.some((e) => tapWindow(e, now) === "late")) return { result: "late", sport };
+  return { result: "noreg", sport };
 }
 
 // ---- チケットの表示用データ(本人の分だけ) ----
@@ -174,13 +202,20 @@ export async function getTickets(memberId: string, now = Date.now()): Promise<Ti
 }
 
 // ---- 主催者専用(呼び出し側で requireAdmin() を済ませること) ----
-export type AdminStampEvent = { id: string; title: string; sport: StampSport; startAt: string; venue: string; version: number; token: string; taps: number };
+export type AdminStampEvent = { id: string; title: string; sport: StampSport; startAt: string; venue: string; taps: number };
 export async function adminStampEvents(now = Date.now()): Promise<AdminStampEvent[]> {
   const events = (await listPublicEvents()).filter((e) => isStampSport(e.sport) && e.status === "published" && new Date(e.endAt).getTime() >= now - 14 * 864e5);
   return Promise.all(events.slice(0, 30).map(async (e) => {
-    const [version, cnt] = await Promise.all([getTagVersion(e.id), eventRef(e.id).collection("stampTaps").count().get()]);
-    const secret = formSecret();
-    return { id: e.id, title: e.title, sport: e.sport as StampSport, startAt: e.startAt, venue: e.venue, version, token: secret ? tagToken(secret, e.id, version) : "", taps: cnt.data().count };
+    const cnt = await eventRef(e.id).collection("stampTaps").count().get();
+    return { id: e.id, title: e.title, sport: e.sport as StampSport, startAt: e.startAt, venue: e.venue, taps: cnt.data().count };
+  }));
+}
+export type AdminStampTag = { sport: StampSport; version: number; token: string };
+export async function adminStampTags(): Promise<AdminStampTag[]> {
+  const secret = formSecret();
+  return Promise.all(STAMP_SPORTS.map(async (sport) => {
+    const version = await getTagVersion(sport);
+    return { sport, version, token: secret ? tagToken(secret, sport, version) : "" };
   }));
 }
 
