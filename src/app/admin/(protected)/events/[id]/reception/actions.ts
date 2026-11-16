@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/session";
 import { getMemberView } from "@/lib/repo/members";
 import { adminAddRegistration, adminCancelRegistration } from "@/lib/repo/registrations";
+import { applyStampDiscount, type ApplyResult } from "@/lib/repo/stamps";
 import { addWalkIn, recordPayment, setCheckedIn, setFeeOverride, setPublicHidden, voidPayment, type OpResult } from "@/lib/repo/reception";
 
 const MSG: Record<OpResult, string> = { ok: "", not_found: "対象が見つかりません。", invalid: "入力が正しくないか、支払い額が残額を超えています。", closed: "会計が確定済みのため変更できません。会計画面で確定を解除してください。" };
@@ -68,4 +69,19 @@ export async function addMemberParticipantAction(id: string, fd: FormData) {
 
 export async function removeParticipantAction(id: string, regId: string, fd: FormData) {
   return runAdmin(id, fd, async (by) => (fd.get("confirm") === "on" ? adminCancelRegistration(id, regId, by) : "invalid_state"));
+}
+
+// スタンプ割引の適用(金額はサーバーで計算し直す。1人分の申込だけ。二重適用しない)。
+const STAMP_MSG: Record<ApplyResult, string> = {
+  ok: "", not_found: "対象が見つかりません。", closed: "会計が確定済みのため変更できません。会計画面で確定を解除してください。",
+  no_discount: "この回は、割引がありません。", already: "すでに適用済みです。", group: "同行者がいるため、自動では適用できません。「個別料金を変更」で調整してください。",
+  paid: "入金済みの額より低くなるため、適用できません。", off: "スタンプカードがOFFです。",
+};
+export async function stampDiscountAction(id: string, regId: string, fd: FormData) {
+  const admin = await requireAdmin();
+  const q = String(fd.get("q") ?? "").slice(0, 50);
+  let res: ApplyResult | "error";
+  try { res = await applyStampDiscount(id, regId, admin.email); } catch { res = "error"; }
+  const qs = q ? `q=${encodeURIComponent(q)}&` : "";
+  redirect(`/admin/events/${id}/reception?${qs}${res === "ok" ? "ok=1" : `err=${encodeURIComponent(res === "error" ? "処理できませんでした。時間をおいて再度お試しください。" : STAMP_MSG[res])}`}`);
 }

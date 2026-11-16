@@ -6,8 +6,9 @@ import { listPayments, listRegs } from "@/lib/repo/reception";
 import { amountDue, balance, matches, totals } from "@/lib/domain/reception";
 import { dateText, timeText } from "@/lib/format";
 import { QuickReception } from "./QuickReception";
-import { addMemberParticipantAction, checkInAction, feeAction, groupPayAction, listVisibilityAction, payAction, removeParticipantAction, voidAction, walkInAction } from "./actions";
+import { addMemberParticipantAction, checkInAction, stampDiscountAction, feeAction, groupPayAction, listVisibilityAction, payAction, removeParticipantAction, voidAction, walkInAction } from "./actions";
 import { listMembers } from "@/lib/repo/members";
+import { stampDiscounts } from "@/lib/repo/stamps";
 
 export const dynamic = "force-dynamic";
 const yen = (n: number) => `${n.toLocaleString()}円`;
@@ -20,6 +21,7 @@ export default async function Reception({ params, searchParams }: { params: Prom
   const q = (sp.q ?? "").slice(0, 50);
   let e, regs, pays;
   const membersAll = await listMembers().catch(() => []);
+  const sd = await stampDiscounts(id).catch(() => ({} as Awaited<ReturnType<typeof stampDiscounts>>)); // スタンプ割引の状況(表示専用。適用はサーバーで再計算する)
   try { [e, regs, pays] = await Promise.all([getEventAny(id), listRegs(id), listPayments(id)]); }
   catch { return <main className="p-4">読み込めませんでした。時間をおいて再度お試しください。</main>; }
   if (!e) notFound();
@@ -73,6 +75,19 @@ export default async function Reception({ params, searchParams }: { params: Prom
                   <div className="text-sm">料金 {yen(r.feeYen)}×{r.partySize} = {yen(amountDue(r))} / 入金 {yen(r.paidYen)} / <strong>{bal > 0 ? `残 ${yen(bal)}` : "支払い済み"}</strong></div>
                 </div>
               </div>
+              {sd[r.id]?.enabled && (
+                <div className="rounded-xl bg-blue-50 p-2 text-sm">
+                  スタンプ {sd[r.id].points}/5 ・ 今日は {sd[r.id].index}ポイント目
+                  {sd[r.id].applied != null ? <span> ・ 割引 {yen(sd[r.id].applied as number)} を適用済み</span>
+                    : sd[r.id].discountYen <= 0 ? <span> ・ 割引なし</span>
+                    : r.partySize === 1 ? (
+                      <form action={stampDiscountAction.bind(null, id, r.id)} className="mt-1">
+                        <input type="hidden" name="q" value={q} />
+                        <button className="rounded border border-blue-700 px-3 py-1.5 font-semibold text-blue-800">スタンプ割引 -{yen(sd[r.id].discountYen)} を適用</button>
+                      </form>
+                    ) : <span> ・ 割引 {yen(sd[r.id].discountYen)}(同行者がいるため、「個別料金を変更」で調整してください)</span>}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <form action={checkInAction.bind(null, id, r.id, !r.checkedIn)}>
                   <input type="hidden" name="q" value={q} />

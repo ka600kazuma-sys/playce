@@ -161,3 +161,12 @@ PLAYCEが主催するバドミントン・バレーボールなどのスポー�
 - **試合情報**: 組み合わせは番号のみ(氏名なし)。主催者が下書きを確認・修正して「公開」。公開後の編集は下書きに保存され、「変更を公開」で一括更新。参加者画面は15秒ごとのポーリングで更新。結果・勝率は記録しない。プッシュ通知は未実装(方式未決定)。
 - **当日の人数変更**: 実施済みの試合番号(1〜N)を指定して、残りだけ再生成。
 - 既存の「対戦成績」メニューは「準備中」のまま(結果は記録しない方針と矛盾しないため残している)。
+
+## 2026-11-16 追加: スタンプカード(ユーザー指示。UI試作は ~/downloadtemp/stampcard-ui/proposal-D.html)
+- 参加者: メニューに「スタンプカード」(`/stamp`、チケットだけを全画面表示。バド/バレーは左右スワイプ)と「スタンプカード設定」(`/stamp/settings`、競技ごとのON/OFF)。貯めたい人だけON。ONにする前の出席はさかのぼらない。OFFでもポイントは残る。
+- 貯め方: 支払いのあと、会場のNFCタグ(またはURL)をかざす → `/stamp/t/[eventId]/[token]` がスタンプを付与し `/stamp?tap=...` へ移す。**受付チェック(checkedIn)とは独立**。付与は、ログイン済み・そのイベントに参加確定の申込・開始3時間前〜終了6時間後・ON・未取得の本人だけ。1イベント1回(`events/{id}/stampTaps/{memberId}` を作成=二重付与の防止。ポイント更新と同じトランザクション)。5の次は1に戻る(0から貯め直し)。対象は競技 badminton / volleyball のみ(「その他」は対象外)。
+- タグURL: `FORM_SECRET` による HMAC 署名(版つき)。DBには版(`stampTags/{eventId}`)だけ。管理画面 `/admin/stamp` で URL のコピー・再発行・取得人数の確認(再発行で古いURLは無効)。FORM_SECRET を変えると全タグが無効になる。**QR表示は未実装**(URLのコピーのみ)。
+- 割引: 3ポイント目の回・5ポイント目の回に、主催者が `/admin/stamp` で決めた額を引く(初期値は両競技とも 100円 / 200円。`stampConfig/default`、履歴つき)。参加費を超えない。割引の回は「かざす前=次のポイント、かざした後=いまのポイント」(`visitIndex`)。受付画面でメンバーの申込ごとに状況を表示し、**1人分の申込だけ**「スタンプ割引を適用」(サーバーで再計算・二重適用なし・会計確定/入金超過は拒否・監査ログ `stamp_discount`)。同行者ありは手動(個別料金変更)。適用すると `feeYen` を下げ、元の額は `baseFeeYen`、割引は `stampDiscountYen` に残す。
+- チケットの内容は、カレンダー(イベント)と申込のデータ: 開催日=`startAt`、会場=`venue`、料金=申込時の `feeYen`(既存ルールどおり申込時の料金を維持)、参加者=ログイン中のニックネーム。その競技に参加確定の申込がなければ「参加予定なし」。
+- 保存: `stampCards/{memberId}_{sport}`、`events/{id}/stampTaps/{memberId}`、`stampConfig/default`、`stampTags/{eventId}`(すべてサーバー経由のみ。rules は全拒否のまま)。メンバー削除・イベント削除で関連データも削除。コード: `src/lib/domain/stamps.ts`・`stampticket.ts`(純粋関数)、`src/lib/repo/stamps.ts`、`src/app/stamp/`、`src/app/admin/(protected)/stamp/`。
+- テスト: `tests/stamps.test.mjs`(単体14件)、`tests/firestore/stamps.test.mjs`(実Firestore+実HTTP。OFF/二重付与/申込なし/時間外/本人分離/割引/再発行/削除連動/HTTP)。**未確認**: 実機iPhone/AndroidでのNFC読み取り、ホーム画面アプリとSafariでのログイン状態の違い。

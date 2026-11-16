@@ -144,15 +144,31 @@ export async function getMemberView(id: string): Promise<MemberView | null> {
 }
 // メンバーの削除。ニックネームを解放し、ログイン状態は(メンバーが無くなるため)すべて無効になる。実行記録を memberDeletions に残す。
 // 申込の取消は、呼び出し側(registrations の adminCancel)で先に行う。
+// メンバーの削除時に、スタンプカード(ポイント)と、各イベントでかざした記録を消す。IDで直接消す(検索用の索引に依存しない)。
+async function purgeStampData(memberId: string) {
+  const batch = db().batch();
+  for (const sport of ["badminton", "volleyball"]) batch.delete(db().collection("stampCards").doc(`${memberId}_${sport}`));
+  await batch.commit();
+  const events = await db().collection("events").listDocuments();
+  for (let i = 0; i < events.length; i += 400) {
+    const b = db().batch();
+    for (const e of events.slice(i, i + 400)) b.delete(e.collection("stampTaps").doc(memberId));
+    await b.commit();
+  }
+}
+
 export async function deleteMemberRecord(id: string, by: string, cancelled: number): Promise<"ok" | "not_found"> {
   if (!validId(id)) return "not_found";
   const ref = members().doc(id), s = await ref.get();
   if (!s.exists) return "not_found";
   const d = s.data() as Raw;
   await db().collection("memberDeletions").doc(`${id}_${Date.now()}`).set({ memberId: id, nickname: d.nickname, by, at: Date.now(), cancelledRegistrations: cancelled });
+  await purgeStampData(id); // 個人に紐づくスタンプの記録を先に消す(失敗したらメンバーは残るので、もう一度削除できる)
   const batch = db().batch();
   batch.delete(nicknames().doc(d.nicknameKey)); batch.delete(ref);
   await batch.commit();
+  // メンバーの削除と同時に来た設定変更・読み取りで、カードが作り直されていても消す(スタンプ側も、メンバーがいなければ作らない)。
+  await purgeStampData(id).catch((e) => console.error("purgeStampData(sweep)", e instanceof Error ? e.message : e));
   return "ok";
 }
 

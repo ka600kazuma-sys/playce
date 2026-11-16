@@ -5,6 +5,8 @@ export type MenuItem = { id: string; label: string; icon: string; href?: string;
 const ALL: MenuItem[] = [
   { id: "calendar", label: "カレンダー", icon: "calendar", href: "/", ready: true },
   { id: "mine", label: "自分の参加予定", icon: "check", href: "/me", ready: true },
+  { id: "stamp", label: "スタンプカード", icon: "ticket", href: "/stamp", ready: true },
+  { id: "stampset", label: "スタンプカード設定", icon: "sliders", href: "/stamp/settings", ready: true },
   { id: "matches", label: "試合情報", icon: "chart", href: "/matches", ready: true },
   { id: "record", label: "対戦成績", icon: "chart", href: "/soon/record", ready: false, badge: "任意" },
   { id: "notices", label: "お知らせ", icon: "bell", href: "/soon/notices", ready: false },

@@ -33,7 +33,7 @@ export function SiteShell({ isAdmin, memberNickname, children }: { isAdmin: bool
   const items = visibleMenu(isAdmin, memberNickname);
   const footer = items.find((i) => i.id === "login");
   const list = items.filter((i) => i.id !== "login");
-  const current = (i: MenuItem) => i.href === "/" ? pathname === "/" : !!i.href && pathname.startsWith(i.href);
+  const current = (i: MenuItem) => i.href === "/" || i.href === "/stamp" ? pathname === i.href : !!i.href && pathname.startsWith(i.href);
 
   const onStart = (e: React.TouchEvent) => { const t = e.touches[0]; touch.current = { x: t.clientX, y: t.clientY, dx: 0, lock: null }; };
   const onMove = (e: React.TouchEvent) => {

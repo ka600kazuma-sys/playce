@@ -1,0 +1,68 @@
+/* スタンプカードのチケット。PLAYCEの色(ネイビー/ブルー/白ベース)に合わせた紙チケット風。ダークモードなし。 */
+.st-screen { height: calc(100dvh - 5.6rem); min-height: 560px; display: flex; flex-direction: column; margin: 0 -1rem; }
+.st-slides { flex: 1; min-height: 0; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+.st-slides::-webkit-scrollbar { display: none; }
+.st-slide { flex: 0 0 100%; scroll-snap-align: center; padding: 10px 14px 4px; min-height: 0; display: flex; justify-content: center; }
+.st-wrap { container-type: size; width: 100%; max-width: 460px; height: 100%; min-height: 560px; }
+.st-dots { flex: none; display: flex; justify-content: center; gap: 8px; padding: 6px 0 10px; }
+.st-dots i { width: 7px; height: 7px; border-radius: 50%; background: #c9d0df; transition: .2s; }
+.st-dots i.on { background: #0f3f82; width: 20px; border-radius: 4px; }
+
+.st-ticket { --accent: #0f3f82; --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .3 0 0 0 0 .22 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; color: #1a2a4a;
+  filter: drop-shadow(0 0 .5px #aeb8cf) drop-shadow(0 10px 18px rgba(15, 63, 130, .18)); }
+.st-ticket.off { filter: grayscale(.9) drop-shadow(0 0 .5px #aeb8cf) drop-shadow(0 6px 10px rgba(15, 63, 130, .1)); }
+.st-ticket.off .st-main, .st-ticket.off .st-stub { opacity: .72; }
+.st-main { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--grain), linear-gradient(180deg, #fffdf7, #fbf7ec); border-radius: 8px 8px 0 0; position: relative;
+  -webkit-mask: radial-gradient(circle 11px at 0 100%, #0000 97%, #000) left/51% 100% no-repeat, radial-gradient(circle 11px at 100% 100%, #0000 97%, #000) right/51% 100% no-repeat;
+  mask: radial-gradient(circle 11px at 0 100%, #0000 97%, #000) left/51% 100% no-repeat, radial-gradient(circle 11px at 100% 100%, #0000 97%, #000) right/51% 100% no-repeat; }
+.st-band { flex: none; border-radius: 8px 8px 0 0; background: var(--accent); color: #fff; display: flex; justify-content: space-between; padding: 3.2cqw 4.4cqw; font-weight: 700; font-size: max(10px, 2.9cqw); line-height: 1; letter-spacing: .12em; white-space: nowrap; }
+.st-body { flex: 1; min-height: 0; margin: 2.8cqw 2.8cqw 3.4cqw; padding: min(4.6cqw, 2.4cqh) 4.4cqw min(5cqw, 2.6cqh); position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: min(3cqw, 1.6cqh);
+  border: 1px solid rgba(15, 63, 130, .28); border-radius: 4px; box-shadow: inset 0 0 0 3px #fffdf7, inset 0 0 0 4px rgba(15, 63, 130, .16); }
+.st-kicker { font-size: max(10px, 3cqw); letter-spacing: .2em; color: #5b6680; }
+.st-title { font-family: var(--font-serif); font-weight: 700; font-size: max(24px, min(9.4cqw, 5cqh)); line-height: 1.2; margin: 1cqw 0 0; }
+.st-title small { display: block; font-family: var(--font-sans); font-weight: 600; font-size: max(10px, 3.1cqw); line-height: 1; letter-spacing: .2em; color: #5b6680; margin-top: 1.2cqw; }
+.st-price { display: flex; align-items: baseline; gap: 2.4cqw; flex-wrap: wrap; }
+.st-yen { font-family: var(--font-serif); font-weight: 700; font-size: max(44px, min(20cqw, 10.5cqh)); line-height: 1; color: #0b3270; }
+.st-yen small { font-size: .42em; margin-left: .08em; }
+.st-price s { color: #5b6680; font-size: max(13px, 3.9cqw); }
+.st-badge { font-size: max(12px, 3.5cqw); font-weight: 700; color: #fff; background: #c8323c; padding: .7cqw 2.6cqw; border-radius: 999px; }
+.st-next { margin-top: 2.4cqw; font-size: max(13px, 4cqw); }
+.st-none { font-family: var(--font-serif); font-weight: 700; font-size: max(30px, min(11cqw, 6cqh)); line-height: 1.2; color: #5b6680; }
+.st-info { margin: 0 27cqw 0 0; padding-top: 3cqw; border-top: 1px dotted #b9c6e0; display: grid; gap: 1.4cqw; font-size: max(12px, 3.6cqw); }
+.st-info div { display: grid; grid-template-columns: 4.2em 1fr; gap: 6px; }
+.st-info dt { color: #5b6680; letter-spacing: .08em; }
+.st-info dd { margin: 0; font-weight: 600; }
+.st-stub { flex: none; background: var(--grain), linear-gradient(180deg, #eef3fc, #e6edf9); border-radius: 0 0 8px 8px; padding: 5.6cqw 4.6cqw 4.6cqw; position: relative;
+  -webkit-mask: radial-gradient(circle 11px at 0 0, #0000 97%, #000) left/51% 100% no-repeat, radial-gradient(circle 11px at 100% 0, #0000 97%, #000) right/51% 100% no-repeat;
+  mask: radial-gradient(circle 11px at 0 0, #0000 97%, #000) left/51% 100% no-repeat, radial-gradient(circle 11px at 100% 0, #0000 97%, #000) right/51% 100% no-repeat; }
+.st-stub::before { content: ""; position: absolute; left: 18px; right: 18px; top: 0; border-top: 2px dashed #b9c6e0; }
+.st-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2.6cqw; }
+.st-head b { font-size: max(11px, 3cqw); letter-spacing: .18em; color: #5b6680; }
+.st-head span { font-family: var(--font-serif); font-weight: 700; font-size: max(20px, 6cqw); line-height: 1; color: #0b3270; }
+.st-slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1.8cqw; }
+.st-slot { aspect-ratio: 1; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed #aab5cd; color: #8591ab; text-align: center; line-height: 1.1; background: #fff; }
+.st-slot .n { font-family: var(--font-serif); font-weight: 700; font-size: max(19px, 5.6cqw); line-height: 1; }
+.st-slot .t { font-size: max(8.5px, 2.3cqw); margin-top: 3px; }
+.st-slot.tier { border: 2px dashed #2f6fd0; color: #2f6fd0; }
+.st-slot.on { border: 2.5px solid #0f3f82; color: #0f3f82; background: #dfe9fa; transform: rotate(-7deg); box-shadow: inset 0 0 0 3px #dfe9fa, inset 0 0 0 4.5px #0f3f8255; }
+.st-slot.on:nth-child(even) { transform: rotate(6deg); }
+.st-slot.on .t { font-weight: 700; }
+.st-slot.new { animation: st-thud .5s cubic-bezier(.3, 0, .5, 1) both; }
+@keyframes st-thud { 0% { transform: scale(2) rotate(-25deg); opacity: 0; } 65% { transform: scale(1.06) rotate(-7deg); opacity: 1; } 100% { transform: scale(1) rotate(-7deg); } }
+.st-bar { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-top: 3.4cqw; }
+.st-barcode { flex: 1; height: max(28px, 8cqw); background: repeating-linear-gradient(90deg, #0b3270 0 2px, transparent 2px 5px, #0b3270 5px 6px, transparent 6px 9px, #0b3270 9px 12px, transparent 12px 14px); }
+.st-serial { font-family: var(--font-mono), ui-monospace, Menlo, monospace; font-weight: 600; font-size: max(11px, 3cqw); line-height: 1; letter-spacing: .1em; color: #5b6680; }
+
+/* ハンコ: 押される瞬間だけ動く。チケット本体は動かない。 */
+.st-admit { position: absolute; right: 3cqw; bottom: 4cqw; transform: rotate(8deg); white-space: nowrap; border: 3px double #c8323c; color: #c8323c; padding: 2.6cqw 3.2cqw; border-radius: 6px; font-weight: 800; font-size: max(15px, 4.6cqw); line-height: 1.2; letter-spacing: .14em; text-align: center; opacity: .9; mix-blend-mode: multiply; background: #c8323c0d; }
+.st-admit.new { animation: st-thanks .55s cubic-bezier(.3, 0, .5, 1) .3s both; }
+@keyframes st-thanks { 0% { transform: translateY(-26px) scale(1.9) rotate(-16deg); opacity: 0; box-shadow: 0 0 0 0 #c8323c00; } 55% { transform: translateY(0) scale(1) rotate(8deg); opacity: .95; box-shadow: 0 0 0 0 #c8323c88; } 72% { transform: scale(1.07) rotate(8deg); } 100% { transform: scale(1) rotate(8deg); opacity: .9; box-shadow: 0 0 0 14px #c8323c00; } }
+@media (prefers-reduced-motion: reduce) { .st-admit.new, .st-slot.new { animation: none; } }
+
+.st-notice { position: absolute; left: 50%; top: 36%; transform: translateX(-50%); width: max-content; max-width: 86%; text-align: center; background: rgba(26, 42, 74, .94); color: #fff; padding: 2.6cqw 4.6cqw; border-radius: 18px; font-size: max(13px, 3.9cqw); font-weight: 600; animation: st-fadeout 3.2s ease-out both; pointer-events: none; z-index: 3; }
+@keyframes st-fadeout { 0% { opacity: 0; transform: translate(-50%, 6px); } 8% { opacity: 1; transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { opacity: 0; } }
+.st-offmark { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; pointer-events: none; z-index: 2; }
+.st-ticket.off .st-offmark { display: flex; }
+.st-offmark span { transform: rotate(-8deg); border: 3px solid #556; color: #445; background: #fffffff2; padding: 3.4cqw 5cqw; border-radius: 10px; font-weight: 800; font-size: max(17px, 5.2cqw); line-height: 1.35; letter-spacing: .1em; text-align: center; }
+.st-offmark small { display: block; font-size: .58em; font-weight: 600; letter-spacing: .04em; margin-top: 6px; }

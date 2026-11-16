@@ -13,6 +13,8 @@ const P: Record<string, React.ReactNode> = {
   pin: <><path d="M12 21s-6.5-5.7-6.5-11a6.5 6.5 0 0 1 13 0c0 5.3-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.3" /></>,
   clock: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3 2" /></>,
   yen: <path d="M6 4l6 8 6-8M12 12v8M7.5 13.5h9M7.5 17h9" />,
+  ticket: <><path d="M3.5 8.5a2 2 0 0 0 0 7V18h17v-2.5a2 2 0 0 0 0-7V6h-17z" /><path d="M14 6v2.5M14 11v2M14 15.5V18" /></>,
+  sliders: <><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></>,
   prev: <path d="M15 5l-7 7 7 7" />,
   next: <path d="M9 5l7 7-7 7" />,
 };

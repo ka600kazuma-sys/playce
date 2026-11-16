@@ -17,6 +17,14 @@ const nextConfig: NextConfig = {
       // ブラウザごとに内容が変わる画面(Cookieに基づく一覧)は、共有キャッシュ(CDN)に保存させない
       { source: "/contact", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       { source: "/me", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      // スタンプのタグURL(署名つき)は、Referer に漏らさず、キャッシュ・検索登録をしない。スタンプ画面は本人専用のため共有キャッシュに載せない
+      { source: "/stamp/t/:eventId/:token", headers: [
+        { key: "Referrer-Policy", value: "no-referrer" },
+        { key: "Cache-Control", value: "no-store" },
+        { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+      ] },
+      { source: "/stamp", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      { source: "/stamp/settings", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       // 個別管理URLを Referer 経由で外部に漏らさない
       { source: "/events/:id/r/:token", headers: [
         { key: "Referrer-Policy", value: "no-referrer" },

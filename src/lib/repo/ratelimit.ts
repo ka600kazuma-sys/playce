@@ -15,6 +15,7 @@ export const SCOPES = {
   account: { limit: 10, windowMs: 10 * 60 * 1000 },     // ニックネーム・パスワードの変更
   transfer: { limit: 10, windowMs: 10 * 60 * 1000 },    // 引き継ぎコードの入力(IPごと。総当たり対策)
   transferissue: { limit: 5, windowMs: 60 * 60 * 1000 }, // 引き継ぎコードの発行(メンバーごと)
+  stamp: { limit: 120, windowMs: 10 * 60 * 1000 },     // スタンプのタグ読み取り(IPごと。会場のWi-Fiは同じIPになるため、多めにする。署名は総当たり不能)
 } as const;
 export type Scope = keyof typeof SCOPES;
 
