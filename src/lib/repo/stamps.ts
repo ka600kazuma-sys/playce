@@ -7,7 +7,6 @@ import {
 } from "@/lib/domain/stamps";
 import { formSecret } from "@/lib/repo/formtoken";
 import { listPublicEvents } from "@/lib/repo/events";
-import { getMemberRegistration } from "@/lib/repo/registrations";
 
 // スタンプカード。保存先(すべてサーバー(Admin SDK)経由のみ。firestore.rules は全拒否のまま):
 //   stampCards/{メンバーID}_{競技}        … { memberId, sport, enabled, points(0〜5), createdAt, updatedAt, enabledAt? } 本人と主催者だけが読む

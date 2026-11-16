@@ -57,8 +57,8 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
                     <code className="block break-all rounded bg-gray-50 p-2 text-xs select-all">{url}</code>
                     <CopyButton text={url} />
                     <div className="space-y-1">
-                      <QrCode text={url} label={`${STAMP_SPORT_LABEL[t.sport]}用のタグのQRコード`} />
-                      <p className="text-xs text-gray-600">スマホのカメラで読むと、タグと同じURLが開き、スタンプが付きます。再発行すると、このQRも使えなくなります。</p>
+                      <QrCode text={url} label={`${STAMP_SPORT_LABEL[t.sport]}用のタグのQRコード`} fullscreenTitle={`${STAMP_SPORT_LABEL[t.sport]}用 スタンプQR`} />
+                      <p className="text-xs text-gray-600">スマホのカメラで読むと、タグと同じURLが開き、スタンプが付きます。「画面いっぱいに表示」を押すと、このスマホ・タブレットの画面にQRを大きく出せます(参加者に読み取ってもらう用。読み取ってもらう間だけ表示し、写真・スクリーンショットを撮ったり共有したりしないよう、参加者にお伝えください。QRを写真で保存されると、会場の外からでも読み取れてしまいます)。再発行すると、このQRも使えなくなります。</p>
                     </div>
                   </>
                 ) : <p className="text-red-700">秘密の設定(FORM_SECRET)がないため、URLを作れません。</p>}
