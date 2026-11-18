@@ -1,6 +1,7 @@
 // 試合情報の隔離テスト(実Firestore+実際にNext.jsを起動してHTTPで確認)。
 // 未公開の組み合わせ・他人の氏名/ニックネーム・主催者画面・他人のプロフィール画像は、参加者側から取得できない。
 import test, { after } from "node:test";
+import { jpegBytes } from "../helpers/jpeg.mjs";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -86,7 +87,7 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
   });
 
   test("プロフィール画像は本人だけ。他人のIDでは取得できず、未ログインは拒否。JPEG以外・大きすぎる画像は保存されない", { timeout: 120_000 }, async () => {
-    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), randomBytes(200)]);
+    const jpeg = Buffer.from(jpegBytes(256, 256));
     assert.equal(await Av.setAvatar(people[0].id, jpeg), true);
     assert.equal(await Av.setAvatar(people[1].id, Buffer.from("not an image at all")), false);
     assert.equal(await Av.setAvatar(people[1].id, Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), randomBytes(200 * 1024)])), false);

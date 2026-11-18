@@ -50,7 +50,7 @@ export function SiteShell({ isAdmin, memberNickname, children }: { isAdmin: bool
         <header className="grid grid-cols-[48px_1fr_48px] items-center border-b border-line pb-2 pt-[max(8px,env(safe-area-inset-top))]">
           <button ref={openerRef} type="button" aria-label="メニューを開く" aria-expanded={open} aria-controls="site-drawer" onClick={() => setOpen(true)} className="grid h-11 w-11 place-items-center rounded-xl hover:bg-tint"><Icon name="menu" /></button>
           <Link href="/" className="text-center font-serif text-[22px] font-bold tracking-[.24em] text-ink">PLAYCE</Link>
-          <Link href="/soon/notices" aria-label="お知らせ" className="grid h-11 w-11 place-items-center rounded-xl hover:bg-tint"><Icon name="bell" /></Link>
+          <Link href="/" aria-label="カレンダーへ戻る" className="grid h-11 w-11 place-items-center rounded-xl hover:bg-tint"><Icon name="calendar" /></Link>
         </header>
         <div className="flex-1">{children}</div>
       </div>

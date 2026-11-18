@@ -6,7 +6,7 @@ import TransferIssuer from "./TransferIssuer";
 import AvatarEditor from "./AvatarEditor";
 import { listPublicEvents } from "@/lib/repo/events";
 import { listMemberRegistrations } from "@/lib/repo/registrations";
-import { hasAvatar } from "@/lib/repo/avatars";
+import { getPhotoPublic, hasAvatar } from "@/lib/repo/avatars";
 import { summarize } from "@/lib/domain/mypage";
 import { dateText, timeText } from "@/lib/format";
 
@@ -17,7 +17,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const m = await requireMember("/account");
   const sp = await searchParams;
   const events = await listPublicEvents().catch(() => []);
-  const [regs, avatarVersion] = await Promise.all([listMemberRegistrations(m.id, events).catch(() => []), hasAvatar(m.id).catch(() => null)]);
+  const [regs, avatarVersion, photoPublic] = await Promise.all([listMemberRegistrations(m.id, events).catch(() => []), hasAvatar(m.id).catch(() => null), getPhotoPublic(m.id).catch(() => false)]);
   const sum = summarize(regs, new Date());
   const item = "grid gap-0.5 rounded-2xl border border-line p-3";
   const input = "mt-1 block w-full rounded border border-line p-3 text-base";
@@ -25,7 +25,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     <main className="mx-auto max-w-md space-y-4 py-6">
       <h1 className="font-serif text-xl font-medium text-navy">マイページ</h1>
       <div className="space-y-1">
-        <AvatarEditor nickname={m.nickname} version={avatarVersion} />
+        <AvatarEditor nickname={m.nickname} version={avatarVersion} photoPublic={photoPublic} />
         <p className="pt-1 font-serif text-lg"><strong>{m.nickname}</strong> さん</p>
       </div>
       {sp.done === "nickname" && <p className="rounded border border-line p-3 text-sm">ニックネームを変更しました。</p>}

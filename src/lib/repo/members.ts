@@ -14,7 +14,7 @@ const validId = (id: string) => /^[A-Za-z0-9_-]{1,64}$/.test(id);
 
 export type MemberView = { id: string; nickname: string };
 export type AdminMemberView = MemberView & { createdAt: number; createdBy: string; lastLoginAt: number | null };
-type Raw = { nickname: string; nicknameKey: string; passwordHash?: string; createdAt: number; updatedAt: number; createdBy?: string; lastLoginAt?: number | null };
+type Raw = { photoKey?: string; nickname: string; nicknameKey: string; passwordHash?: string; createdAt: number; updatedAt: number; createdBy?: string; lastLoginAt?: number | null };
 
 export type CreateResult = { ok: true; id: string } | { ok: false; code: "invalid" | "taken"; message: string };
 
@@ -132,6 +132,16 @@ export async function currentNicknames(ids: string[]): Promise<Record<string, st
   return out;
 }
 
+// 参加者一覧用: いまのニックネームと、公開用の写真キー(本人が公開を選んだときだけある)。
+export async function currentMemberDisplay(ids: string[]): Promise<Record<string, { nickname: string; photoKey: string | null }>> {
+  const uniq = [...new Set(ids.filter(validId))];
+  if (uniq.length === 0) return {};
+  const snaps = await db().getAll(...uniq.map((i) => members().doc(i)), { fieldMask: ["nickname", "photoKey"] }); // 必要なフィールドだけ読む
+  const out: Record<string, { nickname: string; photoKey: string | null }> = {};
+  for (const s of snaps) if (s.exists) { const d = s.data() as Raw; out[s.id] = { nickname: d.nickname, photoKey: typeof d.photoKey === "string" ? d.photoKey : null }; }
+  return out;
+}
+
 // ---- 管理者専用 ----
 export async function listMembers(): Promise<AdminMemberView[]> {
   const snap = await members().orderBy("createdAt").limit(1000).get();
@@ -148,6 +158,7 @@ export async function getMemberView(id: string): Promise<MemberView | null> {
 async function purgeStampData(memberId: string) {
   const batch = db().batch();
   for (const sport of ["badminton", "volleyball"]) batch.delete(db().collection("stampCards").doc(`${memberId}_${sport}`));
+  batch.delete(db().collection("memberAvatars").doc(memberId)); // プロフィール画像(公開を選んでいた写真を含む)も、メンバーの削除と一緒に消す
   await batch.commit();
   const events = await db().collection("events").listDocuments();
   for (let i = 0; i < events.length; i += 400) {
