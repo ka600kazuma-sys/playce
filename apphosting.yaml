@@ -19,6 +19,10 @@ env:
   - variable: ADMIN_EMAILS
     secret: playce-admin-emails
     availability: [RUNTIME]
+  # 公開用のアドレス(タグ・QRのURLに使う)。App Hosting では、アプリは内部のアドレス(*.run.app)で動くため、Host ヘッダーに頼らない。独自ドメインにしたら、ここを変える。
+  - variable: PUBLIC_ORIGIN
+    value: https://playce--playce-e1455.asia-east1.hosted.app
+    availability: [RUNTIME]
   # 申込フォームの署名用。長いランダム文字列。
   - variable: FORM_SECRET
     secret: playce-form-secret

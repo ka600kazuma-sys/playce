@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { adminStampEvents, adminStampTags, getTiers } from "@/lib/repo/stamps";
 import { STAMP_SPORTS, STAMP_SPORT_LABEL } from "@/lib/domain/stamps";
 import { dateText, timeText } from "@/lib/format";
+import { publicOrigin } from "@/lib/domain/origin";
 import { CopyButton } from "./CopyButton";
 import { QrCode } from "./QrCode";
 import { reissueTagAction, saveTiersAction } from "./actions";
@@ -16,8 +17,8 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
   await requireAdmin();
   const sp = await searchParams;
   const h = await headers();
-  const host = h.get("host") ?? "";
-  const proto = h.get("x-forwarded-proto")?.split(",")[0] ?? (/^(localhost|127\.)/.test(host) ? "http" : "https");
+  // タグ・QRに入れる、公開用のアドレス。Host は、本番では内部のアドレス(*.run.app。直接開くと Forbidden)のことがあるため使わない。本番は PUBLIC_ORIGIN、開発はヘッダー。
+  const origin = publicOrigin({ configured: process.env.PUBLIC_ORIGIN, forwardedHost: h.get("x-forwarded-host"), host: h.get("host"), allowHeaders: process.env.NODE_ENV !== "production" }); // 本番は、設定(PUBLIC_ORIGIN)だけを使う(ヘッダーは、クライアント由来の値が混ざりうるため)
   const [tiers, tags, events] = await Promise.all([getTiers(), adminStampTags(), adminStampEvents().catch(() => null)]);
   return (
     <main className="space-y-4">
@@ -48,7 +49,7 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
         <p className="text-xs text-gray-600">バドミントン用・バレーボール用に、それぞれ1枚のタグを作ります(スマホのNFC書き込みアプリで、下のURLを「URL」として書き込む)。イベントごとに書き直す必要はありません。参加者がかざすと、その人が参加確定で申し込んでいる、開催中のイベントにスタンプが付きます(開始の3時間前から、終了の6時間後まで)。URLは他の人に見せないでください。QRコードは、NFCが使えない端末用です(掲示する場合は、開催時間中だけにしてください)。</p>
         <ul className="space-y-3">
           {tags.map((t) => {
-            const url = t.token ? `${proto}://${host}/stamp/t/${t.sport}/${t.token}` : "";
+            const url = t.token && origin ? `${origin}/stamp/t/${t.sport}/${t.token}` : "";
             return (
               <li key={t.sport} className="space-y-2 rounded border p-3 text-sm">
                 <div className="font-semibold">{STAMP_SPORT_LABEL[t.sport]}用のタグ <span className="text-xs font-normal text-gray-600">(第{t.version}版)</span></div>
@@ -61,7 +62,7 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
                       <p className="text-xs text-gray-600">スマホのカメラで読むと、タグと同じURLが開き、スタンプが付きます。「画面いっぱいに表示」を押すと、このスマホ・タブレットの画面にQRを大きく出せます(参加者に読み取ってもらう用。読み取ってもらう間だけ表示し、写真・スクリーンショットを撮ったり共有したりしないよう、参加者にお伝えください。QRを写真で保存されると、会場の外からでも読み取れてしまいます)。再発行すると、このQRも使えなくなります。</p>
                     </div>
                   </>
-                ) : <p className="text-red-700">秘密の設定(FORM_SECRET)がないため、URLを作れません。</p>}
+                ) : <p className="text-red-700">{!t.token ? "秘密の設定(FORM_SECRET)がないため、URLを作れません。" : "公開用のアドレスを特定できないため、URLを作れません。PUBLIC_ORIGIN を設定してください。"}</p>}
                 <details><summary className="cursor-pointer text-red-700">URLを再発行する</summary>
                   <form action={reissueTagAction.bind(null, t.sport)} className="mt-2 space-y-2">
                     <p className="text-xs text-gray-600">古いURL・すでに書き込んだタグ・QRは、使えなくなります。タグが盗まれた・URLが漏れたときに使います。</p>
