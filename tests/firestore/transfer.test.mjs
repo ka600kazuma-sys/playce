@@ -48,6 +48,21 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal(rs.filter((x) => x.ok).length, 1);
   });
 
+  test("初回登録(ニックネーム+パスワード): 弱いパスワードは拒否。登録後はSafariでパスワードでログインでき、アプリのセッションは版に縛られない", async () => {
+    const n = nick("s");
+    assert.equal((await Mem.createMember(n, "short", "self")).ok, false);
+    assert.equal((await Mem.createMember(n, n, "self")).ok, false); // ニックネームと同じ
+    const r = await Mem.createMember(n, "signup-pass-1234", "self");
+    assert.ok(r.ok); ids.push(r.id);
+    const app = (await Mem.createMemberSession(r.id)).token;
+    const who = await Mem.authenticateMember(n, "signup-pass-1234");
+    assert.equal(who?.id, r.id);
+    assert.equal(await Mem.authenticateMember(n, "wrong-pass-0000"), null);
+    assert.equal((await Mem.createMember(n.toUpperCase(), "signup-pass-1234", "self")).ok, false); // 重複
+    assert.ok((await Mem.setMemberPassword(r.id, "changed-pass-5678")).ok);
+    assert.ok(await Mem.getMemberBySession(app)); // 変更してもアプリは追い出されない
+  });
+
   test("初回登録はニックネームだけ。同じニックネーム(大文字小文字・全角半角違い)は、同時に登録しても1件だけ", async () => {
     const n = nick("a");
     const rs = await Promise.all([Mem.createMemberNickOnly(n), Mem.createMemberNickOnly(n.toUpperCase()), Mem.createMemberNickOnly(n)]);

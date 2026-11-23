@@ -14,9 +14,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="mx-auto max-w-sm space-y-4 py-6">
       <h1 className="font-serif text-xl font-medium text-navy">ログイン</h1>
-      <p className="text-sm text-soft">ふだんは、ログイン操作は不要です(自動でログインします)。ここは、はじめての方・機種変更の方・パスワードを設定した方の入口です。タグ・QRを読み取るとSafariが開くため、ホーム画面のアプリで使っている方は、アプリのマイページで先にパスワードを設定してください。</p>
+      <p className="text-sm text-soft">ふだんは、ログイン操作は不要です(自動でログインします)。ここは、はじめての方・機種変更の方・パスワードを設定した方の入口です。タグ・QRを読み取るとSafariが開くため、以前ニックネームだけで登録した方は、ホーム画面のアプリのマイページで先にパスワードを設定してください。</p>
       <div className="grid gap-2">
-        <Link href={`/signup?next=${encodeURIComponent(next)}`} className="rounded-2xl bg-navy-deep p-3 text-center font-semibold text-white">はじめての方(ニックネームだけで登録)</Link>
+        <Link href={`/signup?next=${encodeURIComponent(next)}`} className="rounded-2xl bg-navy-deep p-3 text-center font-semibold text-white">はじめての方(ニックネームとパスワードで登録)</Link>
         <Link href="/restore" className="rounded-2xl border border-line p-3 text-center font-semibold">機種変更の方(引き継ぎコード)</Link>
       </div>
       <h2 className="pt-2 text-sm font-semibold">パスワードを設定した方</h2>

@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "PLAYCE イベントカレンダー",
-  description: "PLAYCEのスポーツイベントカレンダー。ニックネームだけで参加申込できます。",
+  description: "PLAYCEのスポーツイベントカレンダー。ニックネームで参加申込できます。",
 };
 
 export const viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" as const, themeColor: "#ffffff" };

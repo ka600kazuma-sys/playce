@@ -4,21 +4,23 @@ import { redirect } from "next/navigation";
 import { MEMBER_COOKIE, clearMemberCookie, getMember, setMemberCookie } from "@/lib/auth/member";
 import { nicknameKey, safeNext } from "@/lib/domain/member";
 import { allow, requestIp } from "@/lib/repo/ratelimit";
-import { authenticateMember, changeMemberPassword, createMemberNickOnly, createMemberSession, deleteMemberSession, getMemberPasswordHash, sessionHasPwv, issueTransferCode, redeemTransferCode, renameMember, setMemberPassword } from "@/lib/repo/members";
+import { authenticateMember, changeMemberPassword, createMember, createMemberSession, deleteMemberSession, getMemberPasswordHash, sessionHasPwv, issueTransferCode, redeemTransferCode, renameMember, setMemberPassword } from "@/lib/repo/members";
 
 const BUSY = "短時間に操作が集中しています。しばらくしてからもう一度お試しください。";
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? "");
 const enc = encodeURIComponent;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// 初回登録: ニックネームだけ。登録後は、長期のセッションCookieで自動ログインする。
+// 初回登録: ニックネーム+パスワード。登録後は、長期のセッションCookieで自動ログインする。
+// パスワードは、Safari(タグ・QRの遷移先)や、サイトデータを消したあとのログイン用。この端末のセッションは、パスワードの版に縛らない(変更しても追い出されない)。
 export async function signupAction(fd: FormData) {
   const next = safeNext(text(fd, "next"));
   const fail = (m: string): never => redirect(`/signup?err=${enc(m)}&next=${enc(next)}`);
   if (text(fd, "website") !== "") fail("登録できませんでした。");
   if (!(await allow("signup", await requestIp()))) fail(BUSY);
+  if (text(fd, "password") !== text(fd, "again")) fail("パスワードの確認入力が一致しません。");
   let r;
-  try { r = await createMemberNickOnly(text(fd, "nickname")); } catch { return fail("登録できませんでした。時間をおいて再度お試しください。"); }
+  try { r = await createMember(text(fd, "nickname"), text(fd, "password"), "self"); } catch { return fail("登録できませんでした。時間をおいて再度お試しください。"); }
   if (!r.ok) fail(r.message);
   await setMemberCookie((await createMemberSession((r as { ok: true; id: string }).id)).token);
   redirect(next);
