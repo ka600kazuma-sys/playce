@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { MEMBER_COOKIE, clearMemberCookie, getMember, setMemberCookie } from "@/lib/auth/member";
 import { nicknameKey, safeNext } from "@/lib/domain/member";
 import { allow, requestIp } from "@/lib/repo/ratelimit";
-import { authenticateMember, createMemberNickOnly, createMemberSession, deleteMemberSession, issueTransferCode, redeemTransferCode, renameMember } from "@/lib/repo/members";
+import { authenticateMember, changeMemberPassword, createMemberNickOnly, createMemberSession, deleteMemberSession, getMemberPasswordHash, sessionHasPwv, issueTransferCode, redeemTransferCode, renameMember, setMemberPassword } from "@/lib/repo/members";
 
 const BUSY = "短時間に操作が集中しています。しばらくしてからもう一度お試しください。";
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? "");
@@ -73,4 +73,29 @@ export async function renameAction(fd: FormData) {
   let r;
   try { r = await renameMember(m!.id, text(fd, "nickname")); } catch { r = { ok: false as const, message: "変更できませんでした。時間をおいて再度お試しください。" }; }
   redirect(r.ok ? "/account?done=nickname" : `/account?err=${enc(r.message)}`);
+}
+
+// パスワードの設定・変更(Safariなど、別の画面でログインするとき用)。未設定なら新規設定、設定済みなら現在のパスワードの確認が必要。
+// 設定後、パスワードで入っていた端末だけ新しいセッションに入れ替える。ニックネームだけで入った端末(アプリ)は、そのまま有効。
+export async function setPasswordAction(fd: FormData) {
+  const m = await getMember();
+  if (!m) redirect("/login?next=/account");
+  const fail = (msg: string): never => redirect(`/account?err=${enc(msg)}`);
+  if (!(await allow("account", await requestIp())) || !(await allow("pwset", m!.id))) fail(BUSY);
+  const next = text(fd, "password"), again = text(fd, "again"), current = text(fd, "current");
+  if (next !== again) fail("確認用の入力が一致しません。");
+  let r;
+  try {
+    const has = await getMemberPasswordHash(m!.id);
+    if (has) { await sleep(500); r = await changeMemberPassword(m!.id, current, next); }
+    else r = await setMemberPassword(m!.id, next, null);
+  } catch { r = { ok: false as const, message: "設定できませんでした。時間をおいて再度お試しください。" }; }
+  if (!r.ok || !r.passwordHash) return fail(r.ok ? "設定できませんでした。" : r.message);
+  // パスワードで入っていた端末だけ、新しい版のセッションに入れ替える。ニックネームだけで入った端末(ホーム画面のアプリ)は、そのまま。
+  const cur = (await cookies()).get(MEMBER_COOKIE)?.value;
+  if (cur && (await sessionHasPwv(cur).catch(() => false))) {
+    await setMemberCookie((await createMemberSession(m!.id, r.passwordHash)).token);
+    await deleteMemberSession(cur).catch(() => {});
+  }
+  redirect("/account?done=password");
 }

@@ -23,6 +23,31 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
   });
   const mk = async (t) => { const n = nick(t); const r = await Mem.createMemberNickOnly(n); assert.ok(r.ok, JSON.stringify(r)); ids.push(r.id); return { id: r.id, nickname: n }; };
 
+  test("パスワード設定: ニックネームだけの端末(アプリ)は有効なまま、Safariではニックネーム+パスワードで入れる。変更には現在のパスワードが必要", async () => {
+    const m = await mk("p");
+    const app = (await Mem.createMemberSession(m.id)).token; // ホーム画面のアプリ(パスワードなし)
+    assert.equal(await Mem.authenticateMember(m.nickname, "setting-pass-1234"), null); // 設定前は入れない
+    const r = await Mem.setMemberPassword(m.id, "setting-pass-1234");
+    assert.ok(r.ok && r.passwordHash);
+    assert.deepEqual(await Mem.getMemberBySession(app), { id: m.id, nickname: m.nickname }); // アプリは追い出されない
+    const who = await Mem.authenticateMember(m.nickname, "setting-pass-1234");
+    assert.equal(who?.id, m.id);
+    const safari = (await Mem.createMemberSession(who.id, who.passwordHash)).token;
+    assert.ok(await Mem.getMemberBySession(safari));
+    assert.equal(await Mem.authenticateMember(m.nickname, "wrong-pass-0000"), null);
+    assert.equal((await Mem.changeMemberPassword(m.id, "wrong-pass-0000", "another-pass-5678")).ok, false); // 現在のパスワードが違う
+    const c = await Mem.changeMemberPassword(m.id, "setting-pass-1234", "another-pass-5678");
+    assert.ok(c.ok);
+    assert.equal(await Mem.getMemberBySession(safari), null); // 変更前にパスワードで入った端末は無効
+    assert.ok(await Mem.getMemberBySession(app)); // アプリはそのまま
+    assert.equal((await Mem.setMemberPassword(m.id, "short")).ok, false); // 短すぎる
+    assert.equal(await Mem.sessionHasPwv(app), false);
+    assert.equal(await Mem.sessionHasPwv(safari), false); // 変更で無効になった
+    const m2 = await mk("q"); // 同時の初回設定は、どちらか1つだけ成功
+    const rs = await Promise.all([Mem.setMemberPassword(m2.id, "first-pass-1111", null), Mem.setMemberPassword(m2.id, "second-pass-2222", null)]);
+    assert.equal(rs.filter((x) => x.ok).length, 1);
+  });
+
   test("初回登録はニックネームだけ。同じニックネーム(大文字小文字・全角半角違い)は、同時に登録しても1件だけ", async () => {
     const n = nick("a");
     const rs = await Promise.all([Mem.createMemberNickOnly(n), Mem.createMemberNickOnly(n.toUpperCase()), Mem.createMemberNickOnly(n)]);

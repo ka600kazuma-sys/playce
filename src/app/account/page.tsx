@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { requireMember } from "@/lib/auth/member";
-import { NICK_MAX } from "@/lib/domain/member";
-import { logoutAction, renameAction } from "./actions";
+import { NICK_MAX, PW_MIN } from "@/lib/domain/member";
+import { logoutAction, renameAction, setPasswordAction } from "./actions";
+import { getMemberPasswordHash } from "@/lib/repo/members";
 import TransferIssuer from "./TransferIssuer";
 import AvatarEditor from "./AvatarEditor";
 import { listPublicEvents } from "@/lib/repo/events";
@@ -18,6 +19,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const events = await listPublicEvents().catch(() => []);
   const [regs, avatarVersion, photoPublic] = await Promise.all([listMemberRegistrations(m.id, events).catch(() => []), hasAvatar(m.id).catch(() => null), getPhotoPublic(m.id).catch(() => false)]);
+  const hasPassword = !!(await getMemberPasswordHash(m.id).catch(() => null));
   const sum = summarize(regs, new Date());
   const item = "grid gap-0.5 rounded-2xl border border-line p-3";
   const input = "mt-1 block w-full rounded border border-line p-3 text-base";
@@ -30,6 +32,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       </div>
       {sp.done === "nickname" && <p className="rounded border border-line p-3 text-sm">ニックネームを変更しました。</p>}
       {sp.done === "restored" && <p className="rounded border border-line p-3 text-sm">アカウントを引き継ぎました。前の端末のログインは解除されています。</p>}
+      {sp.done === "password" && <p className="rounded border border-line p-3 text-sm">パスワードを設定しました。Safariなど別の画面では、ニックネームとこのパスワードでログインできます。</p>}
       {sp.err && <p role="alert" className="rounded border border-red-400 p-3 text-sm">{sp.err}</p>}
       <section className="space-y-2">
         <h2 className="font-semibold">直近の参加予定</h2>
@@ -56,6 +59,15 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <label className="block text-sm">新しいニックネーム(最大{NICK_MAX}文字)<input name="nickname" required maxLength={NICK_MAX} defaultValue={m.nickname} className={input} /></label>
         <p className="text-xs text-soft">参加者一覧など、表示は新しいニックネームに変わります。</p>
         <button className="w-full rounded-2xl border border-line p-3">変更する</button>
+      </form>
+      <form id="password" action={setPasswordAction} className="space-y-3 rounded-2xl border border-line p-4">
+        <h2 className="font-semibold">パスワード{hasPassword ? "を変更" : "を設定"}</h2>
+        <p className="text-xs text-soft">タグ・QRを読み取ると、ホーム画面のアプリではなくSafariが開き、ログインを求められます。そのときに使うパスワードです。{hasPassword ? "設定済みです。" : "はじめに1回、設定してください。"}</p>
+        <input type="text" name="username" value={m.nickname} readOnly autoComplete="username" hidden />
+        {hasPassword && <label className="block text-sm">いまのパスワード<input type="password" name="current" required maxLength={100} autoComplete="current-password" className={input} /></label>}
+        <label className="block text-sm">新しいパスワード(8文字以上。長いほど安全)<input type="password" name="password" required minLength={PW_MIN} maxLength={100} autoComplete="new-password" className={input} /></label>
+        <label className="block text-sm">もう一度入力<input type="password" name="again" required minLength={PW_MIN} maxLength={100} autoComplete="new-password" className={input} /></label>
+        <button className="w-full rounded-2xl border border-line p-3">{hasPassword ? "変更する" : "設定する"}</button>
       </form>
       <TransferIssuer />
       <form action={logoutAction}><button className="w-full rounded-2xl border border-red-300 p-3 text-red-700">ログアウト</button></form>

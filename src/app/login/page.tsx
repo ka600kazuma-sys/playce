@@ -14,12 +14,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="mx-auto max-w-sm space-y-4 py-6">
       <h1 className="font-serif text-xl font-medium text-navy">ログイン</h1>
-      <p className="text-sm text-soft">ふだんは、ログイン操作は不要です(自動でログインします)。ここは、はじめての方・機種変更の方・以前パスワードを設定した方の入口です。</p>
+      <p className="text-sm text-soft">ふだんは、ログイン操作は不要です(自動でログインします)。ここは、はじめての方・機種変更の方・パスワードを設定した方の入口です。タグ・QRを読み取るとSafariが開くため、ホーム画面のアプリで使っている方は、アプリのマイページで先にパスワードを設定してください。</p>
       <div className="grid gap-2">
         <Link href={`/signup?next=${encodeURIComponent(next)}`} className="rounded-2xl bg-navy-deep p-3 text-center font-semibold text-white">はじめての方(ニックネームだけで登録)</Link>
         <Link href="/restore" className="rounded-2xl border border-line p-3 text-center font-semibold">機種変更の方(引き継ぎコード)</Link>
       </div>
-      <h2 className="pt-2 text-sm font-semibold">以前パスワードを設定した方</h2>
+      <h2 className="pt-2 text-sm font-semibold">パスワードを設定した方</h2>
       <form action={loginAction} className="space-y-3 rounded-2xl border border-line p-4">
         <input type="hidden" name="next" value={next} />
         {sp.err && <p role="alert" className="rounded border border-red-400 p-3 text-sm">{sp.err}</p>}

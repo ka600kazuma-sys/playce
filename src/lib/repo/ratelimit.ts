@@ -14,6 +14,7 @@ export const SCOPES = {
   signup: { limit: 5, windowMs: 10 * 60 * 1000 },       // 参加者の新規登録
   account: { limit: 10, windowMs: 10 * 60 * 1000 },     // ニックネーム・パスワードの変更
   transfer: { limit: 10, windowMs: 10 * 60 * 1000 },    // 引き継ぎコードの入力(IPごと。総当たり対策)
+  pwset: { limit: 8, windowMs: 60 * 60 * 1000 },          // パスワードの設定・変更(メンバーごと)
   transferissue: { limit: 5, windowMs: 60 * 60 * 1000 }, // 引き継ぎコードの発行(メンバーごと)
   avatar: { limit: 30, windowMs: 10 * 60 * 1000 },     // プロフィール写真の設定・公開の切り替え(IPごと)
   photo: { limit: 600, windowMs: 10 * 60 * 1000 },     // 公開の写真(参加者一覧用。1ページに複数枚出るため、多めに。キーは推測できない)

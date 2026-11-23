@@ -98,22 +98,35 @@ export async function renameMember(id: string, nickname: string): Promise<OpResu
   });
 }
 
-// パスワードの変更。変更後は、すべての端末のログイン状態が無効になる(版が変わるため)ので、呼び出し側で新しいセッションを作る。
-export async function setMemberPassword(id: string, password: string): Promise<OpResult & { passwordHash?: string }> {
+// パスワードの設定・変更。expected を渡すと「いまのハッシュがそれと同じとき(null は未設定のとき)だけ」更新する(同時操作で上書きしない)。
+// 変更後は、パスワードで入った端末のログイン状態は無効になる(版が変わるため)。ニックネームだけで入った端末(pwv なし)は有効なまま。
+export async function setMemberPassword(id: string, password: string, expected?: string | null): Promise<OpResult & { passwordHash?: string }> {
   if (!validId(id)) return { ok: false, message: "メンバーが見つかりません" };
   const ref = members().doc(id), s = await ref.get();
   if (!s.exists) return { ok: false, message: "メンバーが見つかりません" };
   const pp = memberPasswordProblem(password, (s.data() as Raw).nickname); if (pp) return { ok: false, message: pp };
   const passwordHash = await hashPassword(password);
-  await ref.update({ passwordHash, updatedAt: Date.now() });
-  return { ok: true, passwordHash };
+  return db().runTransaction(async (tx) => {
+    const cur = await tx.get(ref);
+    if (!cur.exists) return { ok: false as const, message: "メンバーが見つかりません" };
+    if (expected !== undefined && ((cur.data() as Raw).passwordHash ?? null) !== expected) return { ok: false as const, message: "別の操作と重なりました。もう一度お試しください。" };
+    tx.update(ref, { passwordHash, updatedAt: Date.now() });
+    return { ok: true as const, passwordHash };
+  });
 }
 export async function changeMemberPassword(id: string, current: string, next: string): Promise<OpResult & { passwordHash?: string }> {
   if (!validId(id)) return { ok: false, message: "メンバーが見つかりません" };
   const s = await members().doc(id).get();
   const ph = s.exists ? (s.data() as Raw).passwordHash : undefined;
   if (!ph || !(await verifyPassword(current, ph))) return { ok: false, message: "現在のパスワードが違います" };
-  return setMemberPassword(id, next);
+  return setMemberPassword(id, next, ph);
+}
+
+// このセッションが、パスワードの版(pwv)を持つか(パスワードで入った端末か)。
+export async function sessionHasPwv(token: string): Promise<boolean> {
+  if (!isTokenShape(token)) return false;
+  const s = await sessions().doc(hashSecret(token)).get();
+  return s.exists && !!(s.data() as { pwv?: string }).pwv;
 }
 
 export async function getMemberPasswordHash(id: string): Promise<string | null> {
