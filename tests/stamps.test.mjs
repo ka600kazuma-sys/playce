@@ -43,13 +43,15 @@ test("対象の競技はバドミントンとバレーボールだけ", () => {
   assert.equal(isStampSport(undefined), false);
 });
 
-test("タグを読める時間: 開始3時間前〜終了6時間後", () => {
+test("タグを読める時間: 開始3時間前〜終了から90日後(付け忘れの後づけ)", () => {
   const ev = { startAt: "2026-11-23T10:00:00+09:00", endAt: "2026-11-23T12:00:00+09:00" };
   const at = (s) => new Date(s).getTime();
   assert.equal(tapWindow(ev, at("2026-11-23T06:59:00+09:00")), "early");
   assert.equal(tapWindow(ev, at("2026-11-23T07:00:00+09:00")), "open");
   assert.equal(tapWindow(ev, at("2026-11-23T18:00:00+09:00")), "open");
-  assert.equal(tapWindow(ev, at("2026-11-23T18:01:00+09:00")), "late");
+  assert.equal(tapWindow(ev, at("2026-11-23T18:01:00+09:00")), "open");
+  assert.equal(tapWindow(ev, at("2027-02-20T12:00:00+09:00")), "open");
+  assert.equal(tapWindow(ev, at("2027-02-21T12:01:00+09:00")), "late");
   assert.equal(tapWindow({ startAt: "x", endAt: "y" }, 0), "late");
 });
 

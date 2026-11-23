@@ -97,17 +97,19 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal((await pts(m)) + (await pts(none)), 0);
   });
 
-  test("時間外(開始の3時間より前/終了の6時間より後)・対象外の競技・非公開は付かない", T, async () => {
+  test("時間外(開始の3時間より前/終了から90日より後)・対象外の競技・非公開は付かない。2日前のイベントは後づけで付く", T, async () => {
     const m = await mkMember("D"); await S.setEnabled(m.id, "badminton", true); await S.setEnabled(m.id, "volleyball", true);
-    const early = await mkEvent({ offsetHours: 24 }), late = await mkEvent({ offsetHours: -48 }), other = await mkEvent({ sport: "other" }), draft = await mkEvent({ status: "draft" });
-    for (const e of [early, late, other, draft]) { await apply(e, m).catch(() => {}); await settle(e); }
+    const early = await mkEvent({ offsetHours: 24 }), late = await mkEvent({ offsetHours: -24 * 100 }), past = await mkEvent({ offsetHours: -48 }), other = await mkEvent({ sport: "other" }), draft = await mkEvent({ status: "draft" });
+    for (const e of [early, late, past, other, draft]) { await apply(e, m).catch(() => {}); await settle(e); }
     assert.equal((await tp(m, early)).result, "early");
     assert.equal((await tp(m, late)).result, "late");
+    assert.equal((await tp(m, past)).result, "ok", "付け忘れの後づけ");
+    assert.equal((await tp(m, past)).result, "already", "同じイベントは1回だけ");
     assert.equal((await tp(m, other)).result, "unsupported");
     assert.equal((await tp(m, draft)).result, "invalid");
     assert.equal((await S.tap(m.id, "zz_test_not_exist", "1.x")).result, "invalid");
     assert.equal((await S.tap(m.id, "../x", "1.x")).result, "invalid");
-    assert.equal(await pts(m), 0);
+    assert.equal(await pts(m), 1, "付いたのは、後づけの1件だけ");
   });
 
   test("5ポイントの次は0に戻って、1ポイント目から貯め直す(競技ごとに別々)", T, async () => {
@@ -277,12 +279,15 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal(await pts(m), 2);
   });
 
-  test("競技のタグ: 開催前=early・終了後=late・申込なし/別の競技=noreg・OFF=off。不正な競技・署名は何もしない", T, async () => {
+  test("競技のタグ: 開催前=early・終了から90日より後=noreg・申込なし/別の競技=noreg・OFF=off。不正な競技・署名は何もしない", T, async () => {
     const tk = await S.currentTagToken("badminton");
     const a = await mkMember("Q1"), early = await mkEvent({ offsetHours: 24 }); await apply(early, a); await S.setEnabled(a.id, "badminton", true);
     assert.equal((await S.tapBySport(a.id, "badminton", tk)).result, "early");
-    const b = await mkMember("Q2"), late = await mkEvent({ offsetHours: -48 }); await apply(late, b); await settle(late); await S.setEnabled(b.id, "badminton", true);
-    assert.equal((await S.tapBySport(b.id, "badminton", tk)).result, "late");
+    const b = await mkMember("Q2"), late = await mkEvent({ offsetHours: -24 * 100 }); await apply(late, b); await settle(late); await S.setEnabled(b.id, "badminton", true);
+    assert.equal((await S.tapBySport(b.id, "badminton", tk)).result, "noreg", "終了から100日たったイベントは範囲外");
+    const g = await mkMember("Q6"), recent = await mkEvent({ offsetHours: -24 * 3 }); await apply(recent, g); await settle(recent); await S.setEnabled(g.id, "badminton", true);
+    assert.equal((await S.tapBySport(g.id, "badminton", tk)).result, "ok", "3日前のイベントに、付け忘れの後づけ");
+    assert.equal((await S.tapBySport(g.id, "badminton", tk)).result, "already");
     const c = await mkMember("Q3"); await S.setEnabled(c.id, "badminton", true);
     assert.equal((await S.tapBySport(c.id, "badminton", tk)).result, "noreg", "申込なし");
     const d = await mkMember("Q4"), vb = await mkEvent({ sport: "volleyball", offsetHours: -1 }); await apply(vb, d); await settle(vb); await S.setEnabled(d.id, "badminton", true);
@@ -294,13 +299,14 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal((await S.tapBySport(f.id, "badminton", "1.x")).result, "bad");
     assert.equal((await S.tapBySport("../x", "badminton", tk)).result, "invalid");
     assert.equal((await pts(a)) + (await pts(b)) + (await pts(c)) + (await pts(d)) + (await pts(f)), 0);
+    assert.equal(await pts(g), 1);
   });
 
-  test("競技のタグ: 検索の範囲(開始14日先まで・終了3日前まで)の外は、early/late ではなく noreg(仕様)。範囲外の申込が混ざっていても、開催中のものに付く", T, async () => {
+  test("競技のタグ: 検索の範囲(開始14日先まで・終了から90日前まで)の外は、early/late ではなく noreg(仕様)。範囲外の申込が混ざっていても、開催中のものに付く", T, async () => {
     const tk = await S.currentTagToken("badminton");
-    const m2 = await mkMember("R2"), far2 = await mkEvent({ offsetHours: 24 * 15 }), old2 = await mkEvent({ offsetHours: -24 * 4 });
+    const m2 = await mkMember("R2"), far2 = await mkEvent({ offsetHours: 24 * 15 }), old2 = await mkEvent({ offsetHours: -24 * 100 });
     await apply(far2, m2); await apply(old2, m2); await settle(far2); await settle(old2); await S.setEnabled(m2.id, "badminton", true);
-    assert.equal((await S.tapBySport(m2.id, "badminton", tk)).result, "noreg", "15日先・4日前は範囲外");
+    assert.equal((await S.tapBySport(m2.id, "badminton", tk)).result, "noreg", "15日先・100日前は範囲外");
     const m = await mkMember("R"), far = await mkEvent({ offsetHours: 24 * 15 }), cur = await mkEvent({ offsetHours: -1 });
     await apply(far, m); await apply(cur, m); await settle(far); await settle(cur); await S.setEnabled(m.id, "badminton", true);
     assert.equal((await S.tapBySport(m.id, "badminton", tk)).result, "ok", "範囲外の申込が混ざっていても、開催中のイベントに付く");

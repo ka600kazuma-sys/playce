@@ -50,12 +50,13 @@ export function discountFor(index: number, tiers: Tiers, baseFeeYen: number): nu
 
 // タグを読み取れる時間: 開始の3時間前から、終了の6時間後まで。
 export const TAP_BEFORE_MS = 3 * 3600e3;
-export const TAP_AFTER_MS = 6 * 3600e3;
+export const TAP_AFTER_MS = 6 * 3600e3; // 開催直後の「いまのイベント」とみなす時間(チケット表示用)
+export const TAP_LOOKBACK_MS = 90 * 864e5; // 付け忘れの後づけを受け付ける期間(終了から90日)
 export function tapWindow(event: { startAt: string; endAt: string }, nowMs: number): "open" | "early" | "late" {
   const s = new Date(event.startAt).getTime(), e = new Date(event.endAt).getTime();
   if (!Number.isFinite(s) || !Number.isFinite(e)) return "late";
   if (nowMs < s - TAP_BEFORE_MS) return "early";
-  if (nowMs > e + TAP_AFTER_MS) return "late";
+  if (nowMs > e + TAP_LOOKBACK_MS) return "late";
   return "open";
 }
 

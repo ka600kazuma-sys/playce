@@ -46,7 +46,7 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
 
       <section className="space-y-2">
         <h2 className="font-semibold">スタンプのタグ(NFC・QR)― 競技ごとに1枚、毎回同じものを使います</h2>
-        <p className="text-xs text-gray-600">バドミントン用・バレーボール用に、それぞれ1枚のタグを作ります(スマホのNFC書き込みアプリで、下のURLを「URL」として書き込む)。イベントごとに書き直す必要はありません。参加者がかざすと、その人が参加確定で申し込んでいる、開催中のイベントにスタンプが付きます(開始の3時間前から、終了の6時間後まで)。URLは他の人に見せないでください。QRコードは、NFCが使えない端末用です(掲示する場合は、開催時間中だけにしてください)。</p>
+        <p className="text-xs text-gray-600">バドミントン用・バレーボール用に、それぞれ1枚のタグを作ります(スマホのNFC書き込みアプリで、下のURLを「URL」として書き込む)。イベントごとに書き直す必要はありません。参加者がかざすと、その人が参加確定で申し込んでいるイベントにスタンプが付きます(開始の3時間前から、終了の90日後まで。付け忘れの後づけも可能。開催中のイベントが先で、なければ、新しい順に1回につき1イベント)。申込のあるイベントには、欠席でも付けられます。URLは他の人に見せないでください。QRコードは、NFCが使えない端末用です(いつでも使えるため、掲示しないでください)。</p>
         <ul className="space-y-3">
           {tags.map((t) => {
             const url = t.token && origin ? `${origin}/stamp/t/${t.sport}/${t.token}` : "";

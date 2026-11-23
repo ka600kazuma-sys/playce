@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/firebase/admin";
 import { eventSchema } from "@/lib/domain/events";
 import {
-  DEFAULT_TIERS, STAMP_SPORTS, TAP_AFTER_MS, decideTap, discountFor, isStampSport, parseTiers, tagToken, tapWindow, verifyTagToken, visitIndex,
+  DEFAULT_TIERS, STAMP_SPORTS, TAP_AFTER_MS, TAP_LOOKBACK_MS, decideTap, discountFor, isStampSport, parseTiers, tagToken, tapWindow, verifyTagToken, visitIndex,
   type AllTiers, type StampSport, type TapResult, type Tiers,
 } from "@/lib/domain/stamps";
 import { formSecret } from "@/lib/repo/formtoken";
@@ -143,17 +143,23 @@ const DAY = 864e5;
 export async function tapBySport(memberId: string, sport: string, token: string, now = Date.now()): Promise<TapOutcome> {
   if (!validId(memberId) || !isStampSport(sport)) return { result: "invalid" };
   if (!(await verifyTag(sport, token))) return { result: "bad", sport };
-  // 調べるのは、開始が14日先まで・終了から3日前までのイベント(これより外は「early/late」の案内の対象にしない)。
-  // 問い合わせの数を抑えるため、いまに近い順に30件まで(タグを読める開催中のものは、いまにいちばん近いので、落ちない)。
+  // 調べるのは、開始が14日先まで・終了から90日前まで(付け忘れの後づけ)のイベント。
+  // 問い合わせの数を抑えるため、いまに近い順に80件まで(開催中のものは、いまにいちばん近いので、落ちない)。
   const events = (await listPublicEvents()).filter((e) => e.sport === sport && e.status === "published"
-    && new Date(e.startAt).getTime() <= now + 14 * DAY && new Date(e.endAt).getTime() + TAP_AFTER_MS + 3 * DAY >= now)
-    .sort((a, b) => Math.abs(new Date(a.startAt).getTime() - now) - Math.abs(new Date(b.startAt).getTime() - now)).slice(0, 30);
+    && new Date(e.startAt).getTime() <= now + 14 * DAY && new Date(e.endAt).getTime() + TAP_LOOKBACK_MS >= now)
+    .sort((a, b) => Math.abs(new Date(a.startAt).getTime() - now) - Math.abs(new Date(b.startAt).getTime() - now)).slice(0, 80);
   // 申込の読み取りに失敗したら、付与先を決められないので、そのまま失敗させる(別のイベントへ付けない)。
   const registered = (await Promise.all(events.map(async (e) => {
     const snap = await eventRef(e.id).collection("registrations").where("memberId", "==", memberId).get();
     return snap.docs.some((d) => d.data().status === "confirmed") ? e : null;
   }))).filter((e): e is NonNullable<typeof e> => e !== null);
-  const open = registered.filter((e) => tapWindow(e, now) === "open").sort((a, b) => a.startAt.localeCompare(b.startAt));
+  // 付ける順: 開催中(終了6時間以内・開始3時間前から)を開始の早い順に、そのあと、過去のイベントを新しい順に(付け忘れの後づけ)。
+  const isCurrent = (e: { endAt: string }) => new Date(e.endAt).getTime() + TAP_AFTER_MS >= now;
+  const open = registered.filter((e) => tapWindow(e, now) === "open").sort((a, b) => {
+    const ca = isCurrent(a), cb = isCurrent(b);
+    if (ca !== cb) return ca ? -1 : 1;
+    return ca ? a.startAt.localeCompare(b.startAt) : b.startAt.localeCompare(a.startAt);
+  });
   let last: TapOutcome | null = null;
   for (const e of open) {
     const r = await tap(memberId, e.id, token, now);
