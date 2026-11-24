@@ -2,7 +2,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { newThreadSchema, postBodySchema } from "@/lib/domain/messages";
-import { verifyFormToken } from "@/lib/domain/abuse";
+import { formTokenState } from "@/lib/domain/abuse";
 import { hashSecret, isTokenShape } from "@/lib/domain/registration";
 import { addParticipantPost, createThread } from "@/lib/repo/messages";
 import { getPublicEvent } from "@/lib/repo/events";
@@ -17,7 +17,12 @@ const text = (fd: FormData, k: string) => String(fd.get(k) ?? "");
 async function guard(fd: FormData): Promise<string | null> {
   if (text(fd, "website") !== "") return "送信を完了できませんでした。";
   const secret = formSecret();
-  if (!secret || !verifyFormToken(secret, text(fd, "_t"), Date.now())) return "フォームの有効時間が過ぎたか、入力が早すぎます。もう一度お試しください。";
+  // 入力が早すぎても、エラーにしない(自動入力・素早い操作でも送れるように)。1.5秒に満たない分だけ、サーバーで待ってから進める。
+  const raw = text(fd, "_t"), st = secret ? formTokenState(secret, raw, Date.now(), 0) : "bad";
+  if (st === "expired") return "入力画面を開いてから2時間以上たちました。お手数ですが、画面を開き直して、もう一度入力してください。";
+  if (st !== "ok") return "フォームを確認できませんでした。画面を開き直して、もう一度お試しください。";
+  const wait = 1500 - (Date.now() - Number(raw.split(".")[0]));
+  if (wait > 0) await new Promise((r) => setTimeout(r, Math.min(wait, 1500)));
   if (!(await allow("contact", await requestIp()))) return BUSY;
   return null;
 }

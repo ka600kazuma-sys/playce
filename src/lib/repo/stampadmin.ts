@@ -195,3 +195,15 @@ export async function eventStampStatus(eventId: string, now = Date.now()): Promi
   }));
   return out;
 }
+
+// 登録しているメンバー全員の一覧(ポイント画面の一覧表用)。ニックネーム・競技ごとの周回/ポイント/参加回数。呼び出し側で requireAdmin() を済ませること。
+export type MemberRow = { id: string; nickname: string; createdAt: number; cards: Record<StampSport, { enabled: boolean; lap: number; points: number; visits: number } | null> };
+export async function listMembersWithStamps(): Promise<MemberRow[]> {
+  const [ms, cs] = await Promise.all([
+    db().collection("members").select("nickname", "createdAt").orderBy("createdAt").limit(2000).get(),
+    db().collection("stampCards").limit(4000).get(),
+  ]);
+  const byKey = new Map(cs.docs.map((d) => [d.id, d.data()]));
+  const card = (id: string, sp: StampSport) => { const d = byKey.get(`${id}_${sp}`); if (!d) return null; const st = cardStateOf(d); return { enabled: d.enabled === true, lap: st.lap, points: st.points, visits: Number.isInteger(d.visits) ? (d.visits as number) : 0 }; };
+  return ms.docs.map((d) => ({ id: d.id, nickname: String(d.data().nickname), createdAt: (d.data().createdAt as number) ?? 0, cards: { badminton: card(d.id, "badminton"), volleyball: card(d.id, "volleyball") } }));
+}

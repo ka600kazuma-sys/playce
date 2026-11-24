@@ -51,6 +51,7 @@ test("入力検証: 同意なし・空のニックネーム・人数超過を拒
   const ok = { nickname: " たろう ", members: [], agreedRules: true };
   assert.equal(registrationInputSchema.parse(ok).nickname, "たろう");
   assert.equal(registrationInputSchema.safeParse({ ...ok, agreedRules: false }).success, false);
+  assert.equal(registrationInputSchema.safeParse({ nickname: "たろう", members: [] }).success, true, "重要ルールの同意欄は廃止(送られない場合も受け付ける)");
   assert.equal(registrationInputSchema.safeParse({ ...ok, nickname: "  " }).success, false);
   assert.equal(registrationInputSchema.safeParse({ ...ok, members: Array(10).fill("a") }).success, false);
 });

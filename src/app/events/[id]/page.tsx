@@ -27,6 +27,8 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
   // 本人の参加番号(確定した申込がある人だけ)。開始1時間前を過ぎていれば、ここでも配布する(アクセス時の遅延実行)。
   const member = await getMember().catch(() => null);
   let myNumber: Awaited<ReturnType<typeof getMyNumbers>> | null = null;
+  const myReg = member && e.status === "published" ? await getMemberRegistration(e.id, member.id).catch(() => null) : null;
+  const applied = !!myReg && myReg.status !== "cancelled" && myReg.status !== "expired"; // 申込済みなら、申込ボタンは押せない
   if (member && e.status === "published") {
     const reg = await getMemberRegistration(e.id, member.id).catch(() => null);
     if (reg?.status === "confirmed") {
@@ -42,7 +44,9 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
       {e.status === "postponed" && <p role="alert" className="rounded border p-3 font-semibold">このイベントは延期になりました。</p>}
       <h1 className="text-xl font-bold">{e.title}</h1>
       {e.status === "published" && new Date(e.startAt) > new Date() && (
-        <Link href={`/events/${e.id}/apply`} className="block rounded bg-black p-3 text-center font-semibold text-white">参加申込をする</Link>
+        applied
+          ? <span aria-disabled="true" className="block cursor-not-allowed rounded bg-gray-400 p-3 text-center font-semibold text-gray-100">{myReg!.status === "confirmed" ? "申込済みです" : "キャンセル待ちで申込済みです"}</span>
+          : <Link href={`/events/${e.id}/apply`} className="block rounded bg-black p-3 text-center font-semibold text-white">参加申込をする</Link>
       )}
       {myNumber && (
         <p className="rounded-2xl border border-line p-3 text-sm" data-testid="event-number">

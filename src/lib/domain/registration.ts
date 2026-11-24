@@ -12,7 +12,7 @@ const nick = z.string().trim().min(1, "ニックネームを入力してくだ�
 export const registrationInputSchema = z.object({
   nickname: nick,
   members: z.array(nick).max(MAX_PARTY - 1).default([]),
-  agreedRules: z.literal(true, { message: "重要ルールへの同意が必要です" }),
+  agreedRules: z.literal(true).optional(), // 重要ルール(仮)の同意欄は廃止(保存もしていなかった)。送られてきた場合だけ true を要求
   confirmDuplicate: z.boolean().default(false),
 });
 export type RegistrationInput = z.infer<typeof registrationInputSchema>;

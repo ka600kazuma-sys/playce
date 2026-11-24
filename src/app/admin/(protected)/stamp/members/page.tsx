@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/session";
-import { REASONS, memberStamp, searchMembers } from "@/lib/repo/stampadmin";
+import { REASONS, listMembersWithStamps, memberStamp, searchMembers } from "@/lib/repo/stampadmin";
 import { STAMP_SPORTS, STAMP_SPORT_LABEL } from "@/lib/domain/stamps";
 import { dateText, timeText } from "@/lib/format";
 import { adjustAction, cancelCouponAction, issueCouponAction } from "./actions";
@@ -16,6 +16,7 @@ export default async function AdminStampMembers({ searchParams }: { searchParams
   const sp = await searchParams;
   const q = (sp.q ?? "").slice(0, 30);
   const hits = q ? await searchMembers(q).catch(() => []) : [];
+  const all = !sp.m ? await listMembersWithStamps().catch(() => null) : null; // メンバー一覧(会員を選ぶ前だけ)
   const info = sp.m ? await memberStamp(sp.m).catch(() => null) : null;
   const op = () => crypto.randomUUID().replaceAll("-", "");
   const f = "w-full rounded border p-2";
@@ -27,6 +28,24 @@ export default async function AdminStampMembers({ searchParams }: { searchParams
       {sp.ok && <p className="rounded border p-3 text-sm">{sp.ok}</p>}
       {sp.err && <p role="alert" className="rounded border border-red-400 p-3 text-sm">{sp.err}</p>}
       <form className="flex gap-2"><input name="q" defaultValue={q} placeholder="ニックネームで検索" className="w-full rounded border p-3" autoComplete="off" /><button className="rounded border px-4">検索</button></form>
+      {!info && !q && (
+        <section aria-label="メンバー一覧" className="space-y-2">
+          <h2 className="text-base font-semibold">登録しているメンバー{all ? `(${all.length}人)` : ""}</h2>
+          {!all ? <p className="text-sm text-red-700">一覧を読み込めませんでした。時間をおいて、もう一度お試しください。</p> : all.length === 0 ? <p className="text-sm text-gray-500">メンバーはまだいません。</p> : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] border-collapse text-sm">
+                <thead><tr className="border-b text-left text-xs text-gray-600"><th className="py-2 pr-2">ニックネーム</th>{STAMP_SPORTS.map((sp) => <th key={sp} className="pr-2">{STAMP_SPORT_LABEL[sp]}(周・ポイント・参加)</th>)}<th /></tr></thead>
+                <tbody>{all.map((m) => (
+                  <tr key={m.id} className="border-b">
+                    <td className="py-2 pr-2 font-semibold">{m.nickname}</td>
+                    {STAMP_SPORTS.map((sp) => { const c = m.cards[sp]; return <td key={sp} className="pr-2">{c ? <>{c.lap}周目 {c.points}/5pt ・ {c.visits}回{!c.enabled && <span className="ml-1 text-xs text-gray-500">(OFF)</span>}</> : <span className="text-gray-400">―</span>}</td>; })}
+                    <td className="py-1 text-right"><Link href={`/admin/stamp/members?m=${m.id}`} className="rounded border px-3 py-1.5">操作する</Link></td>
+                  </tr>))}</tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
       {q && !info && <ul className="space-y-1 text-sm">{hits.length === 0 && <li className="text-gray-500">該当する会員がいません。</li>}{hits.map((h) => <li key={h.id}><Link href={`/admin/stamp/members?m=${h.id}`} className="underline">{h.nickname}</Link></li>)}</ul>}
       {info && (
         <section className="space-y-4">

@@ -5,11 +5,9 @@ import { applyAction } from "../actions";
 import { MemberFields } from "../MemberFields";
 import { newFormToken } from "@/lib/repo/formtoken";
 import { requireMember } from "@/lib/auth/member";
+import { getMemberRegistration } from "@/lib/repo/registrations";
 
 export const dynamic = "force-dynamic";
-
-// 重要ルールの文面は主催者が決定する。確定するまで仮の文面を表示する。
-const RULES = "（仮）参加に関する重要ルールは、主催者が確定次第ここに表示します。";
 
 export default async function ApplyPage({ params, searchParams }: {
   params: Promise<{ id: string }>; searchParams: Promise<{ err?: string }>;
@@ -20,6 +18,8 @@ export default async function ApplyPage({ params, searchParams }: {
   let e;
   try { e = await getPublicEvent(id); } catch { return <main className="mx-auto max-w-2xl p-4">読み込めませんでした。時間をおいて再度お試しください。</main>; }
   if (!e) notFound();
+  const mine = await getMemberRegistration(id, member.id).catch(() => null);
+  const applied = !!mine && mine.status !== "cancelled" && mine.status !== "expired"; // すでに申込済みなら、申込ボタンは押せない
   const formToken = newFormToken();
   const open = e.status === "published" && new Date(e.startAt) > new Date();
   return (
@@ -33,14 +33,11 @@ export default async function ApplyPage({ params, searchParams }: {
           {err && <p role="alert" className="rounded border border-red-400 p-3 text-sm">{err}</p>}
           <p className="rounded border p-3 text-sm">代表者: <strong>{member.nickname}</strong> さん(ログイン中)<br /><span className="text-xs text-gray-500">ニックネームは、メニューの「アカウント」で変更できます。</span></p>
           <MemberFields initial={[]} />
-          <div className="rounded border p-3 text-sm">
-            <p className="font-semibold">重要ルール</p>
-            <p className="my-2">{RULES}</p>
-            <label className="flex items-center gap-2"><input type="checkbox" name="agreedRules" required /> 内容に同意します</label>
-          </div>
           <p className="rounded border p-3 text-sm">参加が確定すると、<strong>代表者のニックネームが、参加者一覧として、誰でも見られる場所に表示されます</strong>(同行者の名前は表示されません。人数だけが含まれます)。表示を望まない場合は、ニックネームに本名を使わないでください。</p>
-          <button className="w-full rounded bg-black p-3 font-semibold text-white">申し込む</button>
-          <p className="text-xs text-gray-500">申込後に表示される専用URLは、変更・キャンセルに必要です。他の人に共有しないでください。</p>
+          {applied
+            ? <><button type="button" disabled aria-disabled="true" className="w-full cursor-not-allowed rounded bg-gray-400 p-3 font-semibold text-gray-100">{mine!.status === "confirmed" ? "申込済みです" : "キャンセル待ちで申込済みです"}</button>
+                <p className="text-sm"><Link href={`/events/${id}/mine`} className="underline">申込内容を見る・変更する</Link></p></>
+            : <button className="w-full rounded bg-black p-3 font-semibold text-white">申し込む</button>}
         </form>
       )}
     </main>
