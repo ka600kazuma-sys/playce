@@ -137,7 +137,8 @@ export async function tap(memberId: string, eventId: string, token: string, now 
   });
 }
 
-// 付け忘れ用のQR(1個・2個)。そのイベントに、参加確定の申込がある人が、1回だけ読める(NFCのタグで付いていたら「取得済み」)。
+// 付け忘れ用のQR(1個・2個)。主催者が会場で見せたQRを読んだ人に、そのイベントのスタンプを付ける(1イベント1回。NFCで付いていたら「取得済み」)。
+// アプリをまだ使っていない人にも付けられるよう、申込の有無は問わない(読み取り前に、ログイン・新規登録が必要)。QRを読む操作を、その競技のスタンプカードをONにする意思とみなし、OFFならONにする。
 // 時間の範囲は、タグと同じ(開始の3時間前〜終了から90日)。署名は「イベント+個数」。
 export async function tapQr(memberId: string, eventId: string, count: number, token: string, now = Date.now()): Promise<TapOutcome> {
   if (!validId(memberId) || !validId(eventId) || !isQrCount(count)) return { result: "invalid" };
@@ -158,11 +159,12 @@ export async function tapQr(memberId: string, eventId: string, count: number, to
     if (!mem.exists) return { result: "invalid" };
     const confirmed = regs.docs.filter((d) => d.data().status === "confirmed").sort((a, b) => (b.data().createdAt ?? 0) - (a.data().createdAt ?? 0))[0];
     const c = cardOf(card.data());
-    const d = decideTap({ sportSupported: true, enabled: c.enabled, hasConfirmedRegistration: !!confirmed, window: tapWindow(ev, now), alreadyTapped: done.exists, points: c.points });
+    const d = decideTap({ sportSupported: true, enabled: true, hasConfirmedRegistration: true, window: tapWindow(ev, now), alreadyTapped: done.exists, points: c.points });
     if (d.result !== "ok") return { result: d.result, sport: ev.sport, points: c.points };
     const after = addPoints(c.points, count);
-    tx.create(tapRef(eventId, memberId), { memberId, eventId, sport: ev.sport, regId: confirmed.id, at: now, pointsBefore: c.points, pointsAfter: after, count, via: "qr" });
-    tx.update(cardRef(memberId, ev.sport), { points: after, lastTapAt: now, updatedAt: now });
+    tx.create(tapRef(eventId, memberId), { memberId, eventId, sport: ev.sport, regId: confirmed?.id ?? null, at: now, pointsBefore: c.points, pointsAfter: after, count, via: "qr" });
+    if (card.exists) tx.update(cardRef(memberId, ev.sport), { points: after, lastTapAt: now, updatedAt: now, ...(c.enabled ? {} : { enabled: true, enabledAt: now }) });
+    else tx.create(cardRef(memberId, ev.sport), { memberId, sport: ev.sport, enabled: true, enabledAt: now, points: after, lastTapAt: now, createdAt: now, updatedAt: now });
     return { result: "ok", sport: ev.sport, points: after, count };
   });
 }

@@ -64,13 +64,11 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
   const pts = async (m, sport = "badminton") => (await S.getCards(m.id))[sport].points;
   const T = { timeout: 120_000 };
 
-  test("付け忘れ用QR: 1個・2個が付く。1イベント1回(NFCで付いた人・同時読み取りも二重にならない)。署名違い・申込なし・OFF・範囲外は付かない", T, async () => {
+  test("付け忘れ用QR: 1個・2個が付く(申込なし・OFFでも付き、ONになる)。1イベント1回(NFCで付いた人・同時読み取りも二重にならない)。署名違い・範囲外は付かない", T, async () => {
     const { qrToken } = await import("@/lib/domain/stamps");
     const { formSecret } = await import("@/lib/repo/formtoken");
     const q = (e, n) => qrToken(formSecret(), e, n);
     const a = await mkMember("QA"), e1 = await mkEvent({ offsetHours: -48 }); await apply(e1, a); await settle(e1);
-    assert.equal((await S.tapQr(a.id, e1, 1, q(e1, 1))).result, "off", "OFFでは付かない");
-    await S.setEnabled(a.id, "badminton", true);
     assert.equal((await S.tapQr(a.id, e1, 2, q(e1, 1))).result, "bad", "1個用の署名を2個として使えない");
     assert.equal((await S.tapQr(a.id, e1, 1, "x".repeat(32))).result, "bad");
     assert.equal((await S.tapQr(a.id, e1, 3, q(e1, 1))).result, "invalid");
@@ -94,14 +92,28 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal(rs.filter((x) => x.result === "ok").length, 1);
     assert.equal(await pts(c), 2);
     // 申込なし・別イベント・範囲外(終了から90日より後)・開始前
-    const d = await mkMember("QD"); await S.setEnabled(d.id, "badminton", true);
-    assert.equal((await S.tapQr(d.id, e1, 1, q(e1, 1))).result, "noreg");
+    const d = await mkMember("QD");
+    assert.deepEqual(await S.tapQr(d.id, e1, 1, q(e1, 1)), { result: "ok", sport: "badminton", points: 1, count: 1 }, "申込がなくても付く");
+    assert.equal((await S.getCards(d.id)).badminton.enabled, true);
+    d.points = 1;
     const old = await mkEvent({ offsetHours: -24 * 100 }), fut = await mkEvent({ offsetHours: 24 });
     await apply(old, d); await apply(fut, d); await settle(old); await settle(fut);
     assert.equal((await S.tapQr(d.id, old, 1, q(old, 1))).result, "late");
     assert.equal((await S.tapQr(d.id, fut, 1, q(fut, 1))).result, "early");
     assert.equal((await S.tapQr(d.id, "zz_test_not_exist", 1, q("zz_test_not_exist", 1))).result, "invalid");
-    assert.equal(await pts(d), 0);
+    assert.equal(await pts(d), 1, "付いたのは、申込なしの1件だけ");
+    // アプリを使っていない(カードがまだない)人も、QRで作られて付く
+    const nw = await mkMember("QN");
+    assert.equal((await S.getCards(nw.id)).badminton.points, 0);
+    assert.equal((await S.tapQr(nw.id, e3, 2, q(e3, 2))).points, 2);
+    assert.equal((await S.getCards(nw.id)).badminton.enabled, true);
+    // いったんOFFにした人(ポイントは残る)も、QRで加算されてONに戻る
+    const off = await mkMember("QO"); await S.setEnabled(off.id, "badminton", true);
+    const eo1 = await mkEvent(); await apply(eo1, off); assert.equal((await tp(off, eo1)).result, "ok");
+    await S.setEnabled(off.id, "badminton", false);
+    const eo2 = await mkEvent({ offsetHours: -48 }); await settle(eo2);
+    assert.equal((await S.tapQr(off.id, eo2, 1, q(eo2, 1))).points, 2);
+    assert.equal((await S.getCards(off.id)).badminton.enabled, true);
     // 5の次は1に戻る(4ポイント+2個 → 1)
     const w = await mkMember("QW"); await S.setEnabled(w.id, "badminton", true);
     for (let i = 0; i < 4; i++) { const e = await mkEvent(); await apply(e, w); assert.equal((await tp(w, e)).result, "ok"); }
