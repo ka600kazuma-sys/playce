@@ -1,0 +1,14 @@
+CACHE MANIFEST
+# version 14 (ファイルを変更したら、この番号を増やすと端末が新しい版を取り込みます)
+index.html
+style.css
+engine.js
+qrcode.js
+qrcore.js
+reception.js
+app.js
+icon-180.png
+icon-152.png
+
+NETWORK:
+*

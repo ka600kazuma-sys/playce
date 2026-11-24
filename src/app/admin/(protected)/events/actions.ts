@@ -13,7 +13,7 @@ function parse(fd: FormData) {
     title: txt(fd, "title"), sport: txt(fd, "sport"), venue: txt(fd, "venue"),
     startAt: fromLocalInput(txt(fd, "startAt")), endAt: fromLocalInput(txt(fd, "endAt")),
     feeYen: Number(txt(fd, "feeYen") || "0"), capacity: cap === "" ? null : Number(cap),
-    belongings: txt(fd, "belongings"), notes: txt(fd, "notes"), status: txt(fd, "status"),
+    stampMultiplier: Number(txt(fd, "stampMultiplier") || "1"), belongings: txt(fd, "belongings"), notes: txt(fd, "notes"), status: txt(fd, "status"),
   });
 }
 const back = (path: string, msg: string): never => redirect(`${path}?err=${encodeURIComponent(msg)}`);

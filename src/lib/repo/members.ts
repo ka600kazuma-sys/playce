@@ -173,6 +173,9 @@ async function purgeStampData(memberId: string) {
   for (const sport of ["badminton", "volleyball"]) batch.delete(db().collection("stampCards").doc(`${memberId}_${sport}`));
   batch.delete(db().collection("memberAvatars").doc(memberId)); // プロフィール画像(公開を選んでいた写真を含む)も、メンバーの削除と一緒に消す
   await batch.commit();
+  // クーポンも、メンバーの削除と一緒に消す(会員IDで検索。個人に紐づく記録を残さない)。
+  const cs = await db().collection("coupons").where("memberId", "==", memberId).get();
+  for (let i = 0; i < cs.docs.length; i += 400) { const b = db().batch(); for (const c of cs.docs.slice(i, i + 400)) b.delete(c.ref); await b.commit(); }
   const events = await db().collection("events").listDocuments();
   for (let i = 0; i < events.length; i += 400) {
     const b = db().batch();

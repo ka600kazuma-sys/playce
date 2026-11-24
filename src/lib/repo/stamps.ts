@@ -1,10 +1,13 @@
 import "server-only";
+import { createHash } from "node:crypto";
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "@/lib/firebase/admin";
 import { eventSchema } from "@/lib/domain/events";
 import {
-  DEFAULT_TIERS, STAMP_SPORTS, TAP_AFTER_MS, TAP_LOOKBACK_MS, addPoints, isQrCount, qrToken, verifyQrToken, decideTap, discountFor, isStampSport, parseTiers, tagToken, tapWindow, verifyTagToken, visitIndex,
+  DEFAULT_TIERS, STAMP_SPORTS, TAP_AFTER_MS, TAP_LOOKBACK_MS, isQrCount, qrToken, verifyQrToken, decideTap, discountFor, isStampSport, parseTiers, tagToken, tapWindow, verifyTagToken, visitIndex,
   type AllTiers, type StampSport, type TapResult, type Tiers,
 } from "@/lib/domain/stamps";
+import { DEFAULT_LAP_REWARDS, cardStateOf, parseLapRewards, planAward, totalOf, type CouponPlan, type LapRewards } from "@/lib/domain/stampcard2";
 import { formSecret } from "@/lib/repo/formtoken";
 import { listPublicEvents } from "@/lib/repo/events";
 
@@ -14,18 +17,64 @@ import { listPublicEvents } from "@/lib/repo/events";
 //   stampConfig/default                   … { tiers: 割引額, updatedAt, updatedBy } (+ history サブコレクション)
 //   stampTags/{競技}                      … { version }(タグURLの版。競技ごとに1枚。再発行で+1。history サブコレクションに履歴)
 // メンバーIDは、必ず呼び出し側がログインのセッションから取り出したものを渡す(画面・リクエストの値は使わない)。
-const validId = (id: string) => /^[A-Za-z0-9_-]{1,64}$/.test(id);
-const cardRef = (memberId: string, sport: StampSport) => db().collection("stampCards").doc(`${memberId}_${sport}`);
-const eventRef = (eventId: string) => db().collection("events").doc(eventId);
-const tapRef = (eventId: string, memberId: string) => eventRef(eventId).collection("stampTaps").doc(memberId);
-const configRef = () => db().collection("stampConfig").doc("default");
+export const validId = (id: string) => /^[A-Za-z0-9_-]{1,64}$/.test(id);
+export const cardRef = (memberId: string, sport: StampSport) => db().collection("stampCards").doc(`${memberId}_${sport}`);
+export const eventRef = (eventId: string) => db().collection("events").doc(eventId);
+export const tapRef = (eventId: string, memberId: string) => eventRef(eventId).collection("stampTaps").doc(memberId);
+export const configRef = () => db().collection("stampConfig").doc("default");
 const tagRef = (sport: StampSport) => db().collection("stampTags").doc(sport);
 
-export type Card = { enabled: boolean; points: number };
+// points は周内(0〜4)、lap は1始まり。旧カード(lapなし)は cardStateOf で読み替える。
+export type Card = { enabled: boolean; points: number; lap: number };
 const cardOf = (d: FirebaseFirestore.DocumentData | undefined): Card => {
-  const p = d?.points;
-  return { enabled: d?.enabled === true, points: Number.isInteger(p) && p >= 0 && p <= 5 ? p : 0 };
+  const s = cardStateOf(d);
+  return { enabled: d?.enabled === true, points: s.points, lap: s.lap };
 };
+
+// ---- 周回の特典(クーポン)。2026-11: 割引は直接値引きをやめ、クーポン発行だけにした(ユーザー決定) ----
+// coupons/{クーポンID} … { memberId, sport, kind: "discount"|"free", yen, lap, threshold, issuedAt, reason, sourceKey, eventId?, status: "active"|"used"|"cancelled", usedAt, usedEventId, expiresAt }
+// クーポンIDは「付与の元+周+段階」で決まる → 同じ付与の再送で、2枚目は作れない(tx.create)。有効期限・併用・当日使用の可否は未確定のため、設定値を持たず null(期限なし)。
+export const couponRef = (id: string) => db().collection("coupons").doc(id);
+export const rewardsFromSnap = (snap: FirebaseFirestore.DocumentSnapshot): LapRewards => {
+  const v = snap.data()?.lapRewards;
+  if (v === undefined) return DEFAULT_LAP_REWARDS;
+  const r = parseLapRewards(v);
+  if (!r) throw new Error("stampConfig.lapRewards is invalid"); // 読めない・壊れているときは、既定値で進めず失敗させる
+  return r;
+};
+// クーポンの運用設定(未確定事項は、管理者設定で切り替える。初期値は安全側): sameDay=発行されたイベントの当日から使えるか(初期: 使えない=次回以降) / expiryDays=有効日数(初期: なし)。
+export type CouponPolicy = { sameDay: boolean; expiryDays: number | null };
+export const policyFromSnap = (snap: FirebaseFirestore.DocumentSnapshot): CouponPolicy => {
+  const c = snap.data()?.couponPolicy as { sameDay?: unknown; expiryDays?: unknown } | undefined;
+  const d = c?.expiryDays;
+  return { sameDay: c?.sameDay === true, expiryDays: Number.isInteger(d) && (d as number) >= 1 && (d as number) <= 3650 ? (d as number) : null };
+};
+// 自動発行のクーポンIDは「会員・競技・周・段階」で決まる(付与の元に依存しない)。同じ到達で2枚目は作れず、使用済みの特典を、ポイントを戻して再到達しても再発行しない。
+// ポイント取り消しで取り消された未使用の券だけは、再到達時に再発行する(管理者が個別に取り消した券・使用済み・未使用で残っている券は、再発行しない)。ID長は固定(42文字)。
+const couponKey = (m: string, sp: string, lap: number, th: number) => `c_${createHash("sha256").update(`${m}|${sp}|${lap}|${th}`).digest("hex").slice(0, 40)}`;
+export type PreparedCoupon = CouponPlan & { mode: "create" | "reissue" };
+// 読み取りは、最初の書き込みより前に呼ぶこと(トランザクションの制約)。
+export async function prepCoupons(tx: FirebaseFirestore.Transaction, memberId: string, sport: StampSport, coupons: CouponPlan[]): Promise<PreparedCoupon[]> {
+  const ids = coupons.map((c) => couponKey(memberId, sport, c.lap, c.threshold));
+  const snaps = await Promise.all(ids.map((id) => tx.get(couponRef(id))));
+  const out: PreparedCoupon[] = [];
+  coupons.forEach((c, i) => {
+    const d = snaps[i].data();
+    if (!snaps[i].exists) out.push({ ...c, id: ids[i], mode: "create" });
+    else if (d?.status === "cancelled" && typeof d.cancelReason === "string" && d.cancelReason.startsWith("ポイント取り消し")) out.push({ ...c, id: ids[i], mode: "reissue" });
+  });
+  return out;
+}
+export function writeCoupons(tx: FirebaseFirestore.Transaction, cfg: FirebaseFirestore.DocumentSnapshot, p: { memberId: string; sport: StampSport; eventId: string | null; sourceKey: string; coupons: PreparedCoupon[]; now: number; reason: string }) {
+  const pol = policyFromSnap(cfg);
+  for (const c of p.coupons) {
+    (c.mode === "reissue" ? (ref: FirebaseFirestore.DocumentReference, d: FirebaseFirestore.DocumentData) => tx.set(ref, d) : (ref: FirebaseFirestore.DocumentReference, d: FirebaseFirestore.DocumentData) => tx.create(ref, d))(couponRef(c.id), {
+      memberId: p.memberId, sport: p.sport, kind: c.reward.kind, yen: c.reward.kind === "discount" ? c.reward.yen : 0, lap: c.lap, threshold: c.threshold,
+      issuedAt: p.now, reason: `${p.reason}(${c.lap}周目 ${c.threshold}ポイント到達)`, sourceKey: p.sourceKey, eventId: p.eventId,
+      status: "active", usedAt: null, usedEventId: null, expiresAt: pol.expiryDays ? p.now + pol.expiryDays * 864e5 : null,
+    });
+  }
+}
 
 // ---- 割引額の設定 ----
 export async function getTiers(): Promise<AllTiers> {
@@ -53,7 +102,7 @@ const tiersFromSnap = (snap: FirebaseFirestore.DocumentSnapshot): AllTiers => {
 
 // ---- カード(貯めるかどうか・ポイント) ----
 export async function getCards(memberId: string): Promise<Record<StampSport, Card>> {
-  const out = { badminton: { enabled: false, points: 0 }, volleyball: { enabled: false, points: 0 } } as Record<StampSport, Card>;
+  const out = { badminton: { enabled: false, points: 0, lap: 1 }, volleyball: { enabled: false, points: 0, lap: 1 } } as Record<StampSport, Card>;
   if (!validId(memberId)) return out;
   const snaps = await db().getAll(...STAMP_SPORTS.map((s) => cardRef(memberId, s)));
   STAMP_SPORTS.forEach((s, i) => { out[s] = cardOf(snaps[i].data()); });
@@ -115,12 +164,13 @@ export async function tap(memberId: string, eventId: string, token: string, now 
     if (!parsed.success || parsed.data.status !== "published") return { result: "invalid" };
     const ev = parsed.data;
     if (!isStampSport(ev.sport)) return { result: "unsupported" };
-    const [tagSnap, mem, regs, card, done] = await Promise.all([
+    const [tagSnap, mem, regs, card, done, cfg] = await Promise.all([
       tx.get(tagRef(ev.sport)),
       tx.get(db().collection("members").doc(memberId)),
       tx.get(eventRef(eventId).collection("registrations").where("memberId", "==", memberId)),
       tx.get(cardRef(memberId, ev.sport)),
       tx.get(tapRef(eventId, memberId)),
+      tx.get(configRef()),
     ]);
     const ver = Number.isInteger(tagSnap.data()?.version) && tagSnap.data()!.version >= 1 ? (tagSnap.data()!.version as number) : 1;
     if (!secret || !verifyTagToken(secret, ev.sport, ver, token)) return { result: "bad" };
@@ -131,9 +181,13 @@ export async function tap(memberId: string, eventId: string, token: string, now 
       sportSupported: true, enabled: c.enabled, hasConfirmedRegistration: !!confirmed, window: tapWindow(ev, now), alreadyTapped: done.exists, points: c.points,
     });
     if (d.result !== "ok") return { result: d.result, sport: ev.sport, points: c.points };
-    tx.create(tapRef(eventId, memberId), { memberId, eventId, sport: ev.sport, regId: confirmed.id, at: now, pointsBefore: c.points, pointsAfter: d.pointsAfter });
-    tx.update(cardRef(memberId, ev.sport), { points: d.pointsAfter, lastTapAt: now, updatedAt: now });
-    return { result: "ok", sport: ev.sport, points: d.pointsAfter };
+    const sourceKey = `visit_${eventId}_${memberId}`, earned = ev.stampMultiplier;
+    const plan = planAward(card.data(), earned, sourceKey, rewardsFromSnap(cfg));
+    const cps = await prepCoupons(tx, memberId, ev.sport, plan.coupons);
+    tx.create(tapRef(eventId, memberId), { memberId, eventId, sport: ev.sport, regId: confirmed.id, at: now, via: "tag", earned, totalBefore: totalOf(plan.before), pointsAfter: plan.after.points, lapAfter: plan.after.lap });
+    tx.update(cardRef(memberId, ev.sport), { lap: plan.after.lap, points: plan.after.points, model: 2, visits: FieldValue.increment(1), lastTapAt: now, updatedAt: now });
+    writeCoupons(tx, cfg, { memberId, sport: ev.sport, eventId, sourceKey, coupons: cps, now, reason: "参加スタンプ" });
+    return { result: "ok", sport: ev.sport, points: plan.after.points, count: earned };
   });
 }
 
@@ -150,22 +204,27 @@ export async function tapQr(memberId: string, eventId: string, count: number, to
     if (!parsed.success || parsed.data.status !== "published") return { result: "invalid" };
     const ev = parsed.data;
     if (!isStampSport(ev.sport)) return { result: "unsupported" };
-    const [mem, regs, card, done] = await Promise.all([
+    const [mem, regs, card, done, cfg] = await Promise.all([
       tx.get(db().collection("members").doc(memberId)),
       tx.get(eventRef(eventId).collection("registrations").where("memberId", "==", memberId)),
       tx.get(cardRef(memberId, ev.sport)),
       tx.get(tapRef(eventId, memberId)),
+      tx.get(configRef()),
     ]);
     if (!mem.exists) return { result: "invalid" };
     const confirmed = regs.docs.filter((d) => d.data().status === "confirmed").sort((a, b) => (b.data().createdAt ?? 0) - (a.data().createdAt ?? 0))[0];
     const c = cardOf(card.data());
     const d = decideTap({ sportSupported: true, enabled: true, hasConfirmedRegistration: true, window: tapWindow(ev, now), alreadyTapped: done.exists, points: c.points });
     if (d.result !== "ok") return { result: d.result, sport: ev.sport, points: c.points };
-    const after = addPoints(c.points, count);
-    tx.create(tapRef(eventId, memberId), { memberId, eventId, sport: ev.sport, regId: confirmed?.id ?? null, at: now, pointsBefore: c.points, pointsAfter: after, count, via: "qr" });
-    if (card.exists) tx.update(cardRef(memberId, ev.sport), { points: after, lastTapAt: now, updatedAt: now, ...(c.enabled ? {} : { enabled: true, enabledAt: now }) });
-    else tx.create(cardRef(memberId, ev.sport), { memberId, sport: ev.sport, enabled: true, enabledAt: now, points: after, lastTapAt: now, createdAt: now, updatedAt: now });
-    return { result: "ok", sport: ev.sport, points: after, count };
+    const sourceKey = `visit_${eventId}_${memberId}`, earned = count * ev.stampMultiplier; // 倍率はQRの個数にも掛ける(前提・要確認)
+    const plan = planAward(card.data(), earned, sourceKey, rewardsFromSnap(cfg));
+    const cps = await prepCoupons(tx, memberId, ev.sport, plan.coupons);
+    tx.create(tapRef(eventId, memberId), { memberId, eventId, sport: ev.sport, regId: confirmed?.id ?? null, at: now, totalBefore: totalOf(plan.before), pointsAfter: plan.after.points, lapAfter: plan.after.lap, count, earned, via: "qr" });
+    const fields = { lap: plan.after.lap, points: plan.after.points, model: 2, visits: FieldValue.increment(1), lastTapAt: now, updatedAt: now };
+    if (card.exists) tx.update(cardRef(memberId, ev.sport), { ...fields, ...(c.enabled ? {} : { enabled: true, enabledAt: now }) });
+    else tx.create(cardRef(memberId, ev.sport), { memberId, sport: ev.sport, enabled: true, enabledAt: now, ...fields, createdAt: now });
+    writeCoupons(tx, cfg, { memberId, sport: ev.sport, eventId, sourceKey, coupons: cps, now, reason: "参加スタンプ(付け忘れQR)" });
+    return { result: "ok", sport: ev.sport, points: plan.after.points, count: earned };
   });
 }
 
@@ -260,52 +319,57 @@ export async function adminStampTags(): Promise<AdminStampTag[]> {
 
 export type DiscountInfo = { enabled: boolean; points: number; tapped: boolean; index: number; discountYen: number; applied: number | null };
 // 受付画面用: このイベントの、メンバーに紐づく参加確定の申込ごとの、スタンプ割引の状況。
-export async function stampDiscounts(eventId: string): Promise<Record<string, DiscountInfo>> {
-  if (!validId(eventId)) return {};
-  const evSnap = await eventRef(eventId).get();
-  const parsed = eventSchema.safeParse(evSnap.data());
-  if (!parsed.success || !isStampSport(parsed.data.sport)) return {};
-  const sport = parsed.data.sport, tiers = (await getTiers())[sport];
-  const regs = (await eventRef(eventId).collection("registrations").get()).docs.filter((d) => d.data().status === "confirmed" && typeof d.data().memberId === "string");
-  if (!regs.length) return {};
-  const ids = regs.map((d) => d.data().memberId as string);
-  const [cards, taps] = await Promise.all([db().getAll(...ids.map((m) => cardRef(m, sport))), db().getAll(...ids.map((m) => tapRef(eventId, m)))]);
-  const out: Record<string, DiscountInfo> = {};
-  regs.forEach((r, i) => {
-    const c = cardOf(cards[i].data()), tapped = taps[i].exists;
-    // かざし済みなら、そのイベントの記録(pointsAfter)で判定する(あとの別イベントのポイントに影響されない)。
-    const index = visitIndex(tapped && Number.isInteger(taps[i].data()?.pointsAfter) ? (taps[i].data()!.pointsAfter as number) : c.points, tapped), fee = (r.data().baseFeeYen ?? r.data().feeYen) as number;
-    const applied = Number.isInteger(r.data().stampDiscountYen) ? (r.data().stampDiscountYen as number) : null;
-    out[r.id] = { enabled: c.enabled, points: c.points, tapped, index, discountYen: c.enabled ? discountFor(index, tiers, fee) : 0, applied };
-  });
-  return out;
+export async function stampDiscounts(_eventId: string): Promise<Record<string, DiscountInfo>> {
+  return {}; // 直接値引きは廃止(クーポンのみ)
 }
 
-export type ApplyResult = "ok" | "not_found" | "closed" | "no_discount" | "already" | "group" | "paid" | "off";
+export type ApplyResult = "retired" | "ok" | "not_found" | "closed" | "no_discount" | "already" | "group" | "paid" | "off";
 // スタンプ割引を、その申込の参加費に反映する(1人分の申込だけ。金額はサーバーで計算し直す。二重適用しない)。
-export async function applyStampDiscount(eventId: string, regId: string, by: string): Promise<ApplyResult> {
-  if (!validId(eventId) || !validId(regId)) return "not_found";
+export async function applyStampDiscount(_eventId: string, _regId: string, _by: string): Promise<ApplyResult> {
+  return "retired"; // 直接値引きは廃止(クーポンのみ)
+}
+
+// ---- 受付+支払い確認 → スタンプ確定(受付QR方式) ----
+// 条件: 参加確定の申込・受付済み(checkedIn)・支払い確認済み(入金額が参加費に達している)・カードON。順序は問わない(受付が先でも支払いが先でも、後から揃った時点で付く)。
+// 付与は、旧方式と同じ events/{id}/stampTaps/{memberId} を作るため、NFC/QRで付いた人には重ねて付かない(併存)。
+// 参加費0円(無料券など)は、ポイントを付けるかが未確定のため付けない("hold")。何度呼んでも二重に付かない(冪等)。
+export type SettleResult = "awarded" | "already" | "waiting" | "hold" | "off" | "skip";
+export async function settleVisitStamp(eventId: string, regId: string, now = Date.now()): Promise<SettleResult> {
+  if (!validId(eventId) || !validId(regId)) return "skip";
   const regRef = eventRef(eventId).collection("registrations").doc(regId);
-  return db().runTransaction(async (tx): Promise<ApplyResult> => {
-    const [evSnap, regSnap, closed, cfgSnap] = await Promise.all([tx.get(eventRef(eventId)), tx.get(regRef), tx.get(db().collection("accounting").doc(eventId)), tx.get(configRef())]);
+  return db().runTransaction(async (tx): Promise<SettleResult> => {
+    const [evSnap, regSnap, cfg] = await Promise.all([tx.get(eventRef(eventId)), tx.get(regRef), tx.get(configRef())]);
     const parsed = eventSchema.safeParse(evSnap.data());
     const r = regSnap.data();
-    if (!parsed.success || !isStampSport(parsed.data.sport) || !regSnap.exists || !r || r.status !== "confirmed" || typeof r.memberId !== "string") return "not_found";
-    if (closed.exists && closed.data()?.closed === true) return "closed";
-    if (Number.isInteger(r.stampDiscountYen)) return "already";
-    if (r.partySize !== 1) return "group";
-    const sport = parsed.data.sport;
-    const tiers = tiersFromSnap(cfgSnap); // 読めない・壊れているときは、例外で中止(料金を変えない)
-    const [cardSnap, tapSnap] = await Promise.all([tx.get(cardRef(r.memberId, sport)), tx.get(tapRef(eventId, r.memberId))]);
-    const c = cardOf(cardSnap.data());
-    if (!c.enabled) return "off";
-    const index = visitIndex(tapSnap.exists && Number.isInteger(tapSnap.data()?.pointsAfter) ? (tapSnap.data()!.pointsAfter as number) : c.points, tapSnap.exists), base = r.feeYen as number;
-    const discount = discountFor(index, tiers[sport], base);
-    if (discount <= 0) return "no_discount";
-    const fee = base - discount;
-    if (fee * r.partySize < (r.paidYen ?? 0)) return "paid";
-    tx.update(regRef, { feeYen: fee, baseFeeYen: base, stampDiscountYen: discount, stampDiscountIndex: index, updatedAt: Date.now() });
-    tx.set(eventRef(eventId).collection("audit").doc(), { at: Date.now(), by, action: "stamp_discount", regId, from: base, to: fee, index, discountYen: discount });
-    return "ok";
+    if (!parsed.success || !isStampSport(parsed.data.sport) || !r || r.status !== "confirmed" || typeof r.memberId !== "string" || !validId(r.memberId)) return "skip";
+    const ev = parsed.data, memberId = r.memberId as string, sport = ev.sport as StampSport;
+    const [card, done] = await Promise.all([tx.get(cardRef(memberId, sport)), tx.get(tapRef(eventId, memberId))]);
+    if (done.exists) return "already";
+    const due = (r.feeYen as number) * (r.partySize as number);
+    if (!(due > 0)) return "hold";
+    if (r.checkedIn !== true || (r.paidYen ?? 0) < due) return "waiting";
+    if (card.data()?.enabled !== true) return "off";
+    // カードをONにする前の参加には、さかのぼって付けない(再確定でも同じ)。ONにした時刻が、イベント終了(+6時間)より後なら対象外。
+    const enabledAt = card.data()?.enabledAt;
+    if (Number.isInteger(enabledAt) && enabledAt > new Date(ev.endAt).getTime() + TAP_AFTER_MS) return "off";
+    const sourceKey = `visit_${eventId}_${memberId}`, earned = ev.stampMultiplier;
+    const plan = planAward(card.data(), earned, sourceKey, rewardsFromSnap(cfg));
+    const cps = await prepCoupons(tx, memberId, sport, plan.coupons);
+    tx.create(tapRef(eventId, memberId), { memberId, eventId, sport, regId, at: now, via: "reception", earned, totalBefore: totalOf(plan.before), pointsAfter: plan.after.points, lapAfter: plan.after.lap });
+    tx.update(cardRef(memberId, sport), { lap: plan.after.lap, points: plan.after.points, model: 2, visits: FieldValue.increment(1), lastTapAt: now, updatedAt: now });
+    writeCoupons(tx, cfg, { memberId, sport, eventId, sourceKey, coupons: cps, now, reason: "参加スタンプ" });
+    return "awarded";
   });
+}
+
+// 受付・支払いが済んでいるのに、スタンプの確定だけが失敗して残っている申込を確定し直す(受付画面を開いたときに呼ぶ。冪等)。
+export async function settleEventStamps(eventId: string, now = Date.now()): Promise<number> {
+  if (!validId(eventId)) return 0;
+  const regs = (await eventRef(eventId).collection("registrations").get()).docs.filter((d) => {
+    const r = d.data();
+    return r.status === "confirmed" && r.checkedIn === true && typeof r.memberId === "string" && (r.feeYen as number) * (r.partySize as number) > 0 && (r.paidYen ?? 0) >= (r.feeYen as number) * (r.partySize as number);
+  });
+  let n = 0;
+  for (const d of regs) { try { if ((await settleVisitStamp(eventId, d.id, now)) === "awarded") n++; } catch { /* 次回の表示で再試行 */ } }
+  return n;
 }
