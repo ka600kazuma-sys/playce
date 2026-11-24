@@ -19,6 +19,11 @@ export function EventForm({ action, event, withRepeat }: { action: (fd: FormData
         <label className="block text-sm font-semibold">参加費（円/人）<input type="number" name="feeYen" min={0} max={1000000} required defaultValue={event?.feeYen ?? 0} className={f} /></label>
         <label className="block text-sm font-semibold">定員（空欄＝なし）<input type="number" name="capacity" min={1} max={10000} defaultValue={event?.capacity ?? ""} className={f} /></label>
       </div>
+      <label className="block text-sm font-semibold">スタンプ倍率キャンペーン(付与済みのポイントは変わりません)
+        <select name="stampMultiplier" defaultValue={String(event?.stampMultiplier ?? 1)} className={f}>
+          <option value="1">通常(1ポイント)</option><option value="2">2倍(2ポイント)</option><option value="3">3倍(3ポイント)</option>
+        </select>
+      </label>
       <label className="block text-sm font-semibold">持ち物<textarea name="belongings" maxLength={500} defaultValue={event?.belongings} className={f} rows={2} /></label>
       <label className="block text-sm font-semibold">注意事項<textarea name="notes" maxLength={1000} defaultValue={event?.notes} className={f} rows={3} /></label>
       <label className="block text-sm font-semibold">公開状態

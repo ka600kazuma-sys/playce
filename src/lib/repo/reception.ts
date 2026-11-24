@@ -4,6 +4,10 @@ import type { RegStatus } from "@/lib/domain/registration";
 import { amountDue } from "@/lib/domain/reception";
 import { classifyCheckIn } from "@/lib/domain/offline";
 import { currentNicknames } from "@/lib/repo/members";
+import { settleVisitStamp } from "@/lib/repo/stamps";
+
+// 受付・支払いのあと、スタンプの確定を試みる(順序不問・冪等。失敗しても受付・支払い自体は成功のまま)。
+const settle = async (eventId: string, regIds: string[]) => { for (const id of regIds) { try { await settleVisitStamp(eventId, id); } catch { /* 次の操作で再試行される */ } } };
 
 // 管理者専用。呼び出し側で requireAdmin() を済ませること。
 export type RegView = {
@@ -45,13 +49,15 @@ const isClosedSnap = (s: FirebaseFirestore.DocumentSnapshot) => s.exists && (s.d
 export async function setCheckedIn(eventId: string, regId: string, value: boolean, by: string): Promise<OpResult> {
   if (!validId(eventId) || !validId(regId)) return "not_found";
   const ref = ev(eventId).collection("registrations").doc(regId);
-  return db().runTransaction(async (tx) => {
+  const res = await db().runTransaction(async (tx): Promise<OpResult> => {
     const s = await tx.get(ref);
     if (!s.exists) return "not_found";
     tx.update(ref, { checkedIn: value, updatedAt: Date.now() });
     audit(tx, eventId, by, value ? "checkin" : "checkin_undo", { regId });
     return "ok";
   });
+  if (res === "ok" && value) await settle(eventId, [regId]);
+  return res;
 }
 
 // 入金。キー(冪等性キー)が同じなら二重に記録しない。支払い超過は拒否する。
@@ -60,7 +66,7 @@ export async function recordPayment(eventId: string, key: string, allocations: {
   if (allocations.some((a) => !validId(a.regId) || !Number.isInteger(a.amountYen) || a.amountYen < 1 || a.amountYen > 1_000_000)) return "invalid";
   if (new Set(allocations.map((a) => a.regId)).size !== allocations.length) return "invalid";
   const payRef = ev(eventId).collection("payments").doc(key);
-  return db().runTransaction(async (tx) => {
+  const res = await db().runTransaction(async (tx): Promise<OpResult> => {
     const [pay, closed, ...regSnaps] = await Promise.all([tx.get(payRef), tx.get(acct(eventId)), ...allocations.map((a) => tx.get(ev(eventId).collection("registrations").doc(a.regId)))]);
     if (pay.exists) return "ok"; // 再送・二重タップ
     if (isClosedSnap(closed)) return "closed";
@@ -79,6 +85,8 @@ export async function recordPayment(eventId: string, key: string, allocations: {
     audit(tx, eventId, by, "payment", { paymentId: key, amountYen: total });
     return "ok";
   });
+  if (res === "ok") await settle(eventId, allocations.map((a) => a.regId)); // 再送(pay.exists)でも、取りこぼしの確定を試みる
+  return res;
 }
 
 // 入金の取り消し。削除せず「取消」として残し、各人の入金額を戻す。
@@ -105,7 +113,7 @@ export async function voidPayment(eventId: string, paymentId: string, reason: st
 export async function setFeeOverride(eventId: string, regId: string, feeYen: number, reason: string, by: string): Promise<OpResult> {
   if (!validId(eventId) || !validId(regId) || !Number.isInteger(feeYen) || feeYen < 0 || feeYen > 1_000_000 || reason.length < 1 || reason.length > 200) return "invalid";
   const ref = ev(eventId).collection("registrations").doc(regId);
-  return db().runTransaction(async (tx) => {
+  const res = await db().runTransaction(async (tx): Promise<OpResult> => {
     const [s, closed] = await Promise.all([tx.get(ref), tx.get(acct(eventId))]);
     if (!s.exists) return "not_found";
     if (isClosedSnap(closed)) return "closed";
@@ -115,6 +123,8 @@ export async function setFeeOverride(eventId: string, regId: string, feeYen: num
     audit(tx, eventId, by, "fee_override", { regId, from: r.feeYen, to: feeYen, reason });
     return "ok";
   });
+  if (res === "ok") await settle(eventId, [regId]); // 請求額が変わって、入金が足りた状態になった場合に、スタンプを確定する
+  return res;
 }
 
 // 飛び入り追加。当日の現場判断のため、定員に関係なく受付済みの確定として登録する。
@@ -141,7 +151,7 @@ export type CheckInOpResult = OpResult | "conflict";
 export async function applyCheckInOp(eventId: string, opId: string, regId: string, value: boolean, expect: boolean, force: boolean, by: string): Promise<CheckInOpResult> {
   if (!validId(eventId) || !validId(regId) || !validId(opId)) return "invalid";
   const ref = ev(eventId).collection("registrations").doc(regId), opRef = ev(eventId).collection("ops").doc(opId);
-  return db().runTransaction(async (tx): Promise<CheckInOpResult> => {
+  const res = await db().runTransaction(async (tx): Promise<CheckInOpResult> => {
     const [s, op] = await Promise.all([tx.get(ref), tx.get(opRef)]);
     if (op.exists) return "ok"; // 再送
     if (!s.exists) return "not_found";
@@ -154,6 +164,8 @@ export async function applyCheckInOp(eventId: string, opId: string, regId: strin
     tx.create(opRef, { at: Date.now(), by, type: "checkin", regId });
     return "ok";
   });
+  if (res === "ok" && value) await settle(eventId, [regId]);
+  return res;
 }
 
 // 公開の参加者一覧に、この人のニックネームを出すか(主催者の判断。不適切な名前などを隠す)。人数には含まれる。

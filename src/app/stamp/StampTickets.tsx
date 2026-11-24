@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { TicketModel } from "@/lib/domain/stampticket";
 import { dateText, timeText } from "@/lib/format";
+import Link from "next/link";
 import QrScanner from "./QrScanner";
 import "./stamp.css";
 
@@ -31,6 +32,7 @@ function Ticket({ m, notice, animate }: { m: TicketModel; notice: Notice | null;
             <div>
               <div className="st-none">参加予定なし</div>
               <div className="st-next">この競技の、参加確定の申込がありません</div>
+              {m.enabled && <div className="st-next">{m.nextText}</div>}
             </div>
           )}
           <dl className="st-info">
@@ -84,6 +86,7 @@ export default function StampTickets({ models, initialSport, notice, animateSpor
           </section>
         ))}
       </div>
+      <div className="st-pointslink"><Link href="/stamp/points">ポイント・クーポンを見る</Link></div>
       <QrScanner />
       <div className="st-dots" aria-hidden="true">{models.map((m, i) => <i key={m.sport} className={i === idx ? "on" : ""} />)}</div>
     </div>

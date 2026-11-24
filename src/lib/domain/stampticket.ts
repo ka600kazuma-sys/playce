@@ -1,18 +1,21 @@
 // チケット1枚の表示内容(純粋関数)。画面は、この結果をそのまま描くだけにする。
-import { CYCLE, TIER_POINTS, discountFor, nextPoints, type StampSport, type Tiers } from "./stamps.ts";
+// 2026-11: 直接値引きは廃止(特典はクーポン)。チケットは参加費を割り引かず、「次の特典」を案内する。
+import { CYCLE, type StampSport } from "./stamps.ts";
+import { lapParity, pointsToNextReward, type LapRewards, type Reward } from "./stampcard2.ts";
 
 export type TicketInput = {
-  sport: StampSport; enabled: boolean; points: number; tiers: Tiers; tapped: boolean;
+  sport: StampSport; enabled: boolean; points: number; lap: number; rewards: LapRewards; tapped: boolean;
   event: { startAt: string; venue: string } | null;
-  feeYen: number; // 割引前の参加費(申込時の料金)
+  feeYen: number; // 参加費(申込時の料金)
   partySize: number;
-  appliedDiscountYen?: number | null; // 受付で適用済みのスタンプ割引
-  tapPoints?: number | null;          // このイベントでかざしたときのポイント
+  tapPoints?: number | null;          // このイベントでかざしたときの周内ポイント
 };
+export const rewardText = (r: Reward) => (r.kind === "free" ? "参加費1回無料" : `${r.yen}円引き`);
+export const rewardShort = (r: Reward) => (r.kind === "free" ? "無料" : `${r.yen}円引`);
 export type Slot = { n: number; on: boolean; tier: boolean; label: string; isNew: boolean };
 export type TicketModel = {
   sport: StampSport; label: string; en: string; code: string; accent: string;
-  enabled: boolean; points: number; tapped: boolean;
+  enabled: boolean; points: number; lap: number; tapped: boolean;
   hasEvent: boolean; startAt: string | null; venue: string; venueHref: string | null; participant: string; serial: string;
   phase: "today" | "next"; kicker: string; // today: かざす前=今日の参加費 / next: かざした後=次回の参加費(目安)
   baseFeeYen: number; priceYen: number; discountYen: number; nextIndex: number; nextText: string;
@@ -27,33 +30,20 @@ const META: Record<StampSport, { label: string; en: string; code: string; accent
 export function buildTicketModel(t: TicketInput, nickname: string, newIndex = 0, venueHref: string | null = null): TicketModel {
   const m = META[t.sport];
   const phase = t.tapped ? "next" : "today";
-  // かざす前: 今日の来場(次に付くポイント)の価格。受付で適用済みなら、その割引をそのまま使う(二重に引かない)。
-  // かざした後: 次回の来場の目安(このイベントの参加費をもとにした見込み)。
-  const index = nextPoints(t.points);
-  const raw = !t.event ? 0
-    : phase === "today" && t.appliedDiscountYen != null ? Math.min(t.appliedDiscountYen, Math.max(0, t.feeYen))
-    : discountFor(index, t.tiers, t.feeYen);
-  // 同行者がいる申込は、受付で自動では割引を適用しない(個別に調整する)ため、割引後の金額は出さない。適用済みなら、その額を出す。
-  const group = !!t.event && t.partySize > 1 && t.appliedDiscountYen == null;
-  const discountYen = group ? 0 : raw;
-  const nextTier = TIER_POINTS.find((p) => p >= index);
-  const hint = nextTier ? `あと${nextTier - index + 1}回で ${t.tiers[nextTier]}円引き` : "";
-  const nextText = !t.event ? ""
-    : phase === "next" && t.points >= CYCLE ? "5ポイント達成。次回は0に戻り、1ポイント目から貯め直し"
-    : group && raw > 0 ? `${phase === "today" ? "本日は" : "次回は"} ${index}ポイント目 ― ${raw}円引きの回(同行者がいるため、受付で調整します)`
-    : discountYen > 0 ? `${phase === "today" ? "本日は" : "次回は"} ${index}ポイント目 ― ${discountYen}円引き${phase === "today" && t.appliedDiscountYen != null ? "(受付で適用済み)" : ""}`
-    : hint ? `${phase === "today" ? "本日は" : "次回は"} ${index}ポイント目 ― ${hint}` : `${phase === "today" ? "本日は" : "次回は"} ${index}ポイント目`;
+  const par = lapParity(t.lap), rw = t.rewards[par];
+  const toNext = pointsToNextReward({ lap: t.lap, points: t.points }), nextPt = t.points < 3 ? 3 : 5;
+  const nextText = `${t.lap}周目 ― ${nextPt}ポイントで${rewardText(rw[nextPt as 3 | 5])}(あと${toNext}ポイント)`; // 参加予定の有無にかかわらず、カードの状態から出す
   const slots: Slot[] = Array.from({ length: CYCLE }, (_, i) => {
-    const n = i + 1, on = n <= t.points, tier = (TIER_POINTS as readonly number[]).includes(n);
-    return { n, on, tier: tier && !on, label: on ? `${n}pt` : tier ? `${t.tiers[n as 3 | 5]}円引` : "通常", isNew: newIndex === n && on };
+    const n = i + 1, on = n <= t.points, tier = n === 3 || n === 5;
+    return { n, on, tier: tier && !on, label: on ? `${n}pt` : tier ? rewardShort(rw[n as 3 | 5]) : "通常", isNew: newIndex === n && on };
   });
   return {
-    sport: t.sport, ...m, enabled: t.enabled, points: t.points, tapped: t.tapped,
+    sport: t.sport, ...m, accent: par === "even" ? "#8a5d0b" : m.accent, enabled: t.enabled, points: t.points, lap: t.lap, tapped: t.tapped,
     hasEvent: !!t.event, startAt: t.event?.startAt ?? null, venue: t.event?.venue ?? "", venueHref: t.event ? venueHref : null,
     serial: `${m.code}-${t.event ? t.event.startAt.slice(0, 10).replaceAll("-", "") : "00000000"}`,
     participant: t.event ? `${nickname}${t.partySize > 1 ? ` ほか${t.partySize - 1}名` : ""}` : "",
-    phase, kicker: phase === "today" ? "TODAY'S ENTRY / 本日の参加費" : "NEXT ENTRY / 次回の参加費(目安)",
-    baseFeeYen: t.feeYen, priceYen: Math.max(0, t.feeYen - discountYen), discountYen, nextIndex: index, nextText, slots,
+    phase, kicker: phase === "today" ? "TODAY'S ENTRY / 本日の参加費" : "NEXT ENTRY / 次回の参加費",
+    baseFeeYen: t.feeYen, priceYen: t.feeYen, discountYen: 0, nextIndex: Math.min(t.points + 1, CYCLE), nextText, slots,
   };
 }
 

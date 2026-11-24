@@ -1,0 +1,111 @@
+*{box-sizing:border-box;-webkit-tap-highlight-color:rgba(0,0,0,0)}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#cfdaea}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;font-size:20px;color:#182744;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+button{font:inherit;font-weight:700;min-width:56px;min-height:56px;padding:0 14px;cursor:pointer;-webkit-appearance:none;appearance:none;border:1px solid #a1b2c9;border-radius:9px;white-space:nowrap;color:#183057;background:#fff}
+button:active{background:#dbe6f6}
+button[disabled]{opacity:.35}
+h1,h2,h3,p{margin:0}
+h2{font-size:24px} h3{font-size:18px}
+.app{position:relative;width:100%;max-width:1024px;height:100%;max-height:768px;margin:auto;overflow:hidden;background:#edf2f8}
+header{height:74px;padding:0 26px;display:table;width:100%;background:#172f55;color:#fff}
+header>*{display:table-cell;vertical-align:middle}
+header h1{font-size:31px}
+header p{text-align:right;font-size:18px;font-weight:700}
+.warn{background:#c0392b;color:#fff;padding:2px 10px;border-radius:6px;margin-right:10px}
+.nav{position:absolute;top:83px;left:26px;right:26px;height:56px}
+.nav button{min-width:130px;margin-right:6px;font-size:20px}
+.nav button.on,.primary,.presets .chosen{background:#194fac;color:#fff;border-color:#194fac}
+.content{position:absolute;top:148px;bottom:0;left:0;right:0;padding:10px 26px 14px}
+.panel{border:1px solid #c3d1e3;border-radius:15px;background:#fff}
+.split{height:100%;position:relative}
+.timer{position:absolute;left:0;top:0;width:64%;padding:18px 8px 20px;text-align:center}
+.timer h2{font-size:22px}
+.digits{font-family:Menlo,monospace;font-size:178px;font-weight:700;line-height:1;letter-spacing:-.08em;padding-right:.08em;white-space:nowrap;margin-top:14px}
+.timer .state{font-weight:700;font-size:20px;margin:10px 0 14px}
+.presets button+button,.controls button+button,.actions button+button{margin-left:7px}
+.presets button{min-width:69px}
+.row{margin-top:10px}
+.controls{margin-top:12px;white-space:nowrap}
+.controls button{min-width:88px;padding:0 12px}
+.timer.done{-webkit-animation:flash .8s infinite;animation:flash .8s infinite}
+@-webkit-keyframes flash{0%{background:#fff}50%{background:#ffb3a8}100%{background:#fff}}
+@keyframes flash{0%{background:#fff}50%{background:#ffb3a8}100%{background:#fff}}
+.state.end{color:#c0392b;font-size:28px}
+.match{position:absolute;right:0;top:0;bottom:0;width:34%;padding:10px;overflow:auto;-webkit-overflow-scrolling:touch}
+.match .head{margin-bottom:6px}
+.match .head h2{font-size:19px;margin-bottom:6px}
+.match .head button{display:block;width:100%;margin:6px 0 0}
+.court{border:1px solid #c3d1e3;border-radius:12px;padding:6px 10px;margin-bottom:6px;background:#f4f7fc}
+.court h3{font-size:14px;margin-bottom:2px;color:#345482}
+.players{font-size:19px;font-weight:800;line-height:1.25}
+.players span{display:block}
+.players b{display:block;color:#345482;font-size:14px;line-height:1}
+.resting{font-size:15px;color:#345482;margin-top:6px}
+.full{height:100%;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px}
+.toolbar{margin-bottom:12px;min-height:56px;display:table;width:100%}
+.toolbar>*{display:table-cell;vertical-align:middle}
+.toolbar .actions{text-align:right;white-space:nowrap}
+.bigcourts .court{display:inline-block;vertical-align:top;width:48.5%;margin:0 1% 10px 0;padding:10px 12px}
+.bigcourts .court h3{font-size:18px}
+.bigcourts .team{display:block;margin:4px 0}
+.bigcourts .players b{display:block;margin:2px 0;font-size:16px}
+.chip{min-width:78px;min-height:62px;font-size:32px;font-weight:800;padding:0 10px;margin:0 6px 0 0;background:#fff}
+.chip.sel{background:#ffd34d;border-color:#ca7900;border-width:3px}
+.chips .chip{min-width:64px;min-height:56px;font-size:24px;margin:0 6px 6px 0}
+.sub{font-size:18px;color:#345482;margin:8px 0 6px}
+.qrow{border:1px solid #c3d1e3;border-radius:10px;background:#fff;padding:8px 12px;margin-bottom:8px;font-size:18px}
+.qrow .chip{min-width:48px;min-height:48px;font-size:20px;margin:2px 4px 2px 0}
+.stepper{display:inline-block;vertical-align:middle}
+.stepper span{display:inline-block;min-width:90px;text-align:center;font-size:30px;font-weight:800}
+.people{width:100%;table-layout:fixed;border-collapse:collapse}
+.people th,.people td{text-align:center;border-bottom:1px solid #c3d1e3;background:#fff;padding:4px;font-size:19px}
+.people th{font-size:15px;height:40px}
+.people td:first-child{font-weight:800;font-size:22px}
+.people button{min-width:0;padding:0 10px;font-size:17px;min-height:48px}
+.people tr.off td{background:#e3e7ee;color:#7a8498}
+.roster-col{width:49%;float:left}
+.roster-col+.roster-col{float:right}
+.clear{clear:both}
+.history-row{padding:12px 16px;margin:0 0 10px;font-size:20px;line-height:1.5}
+.history-row b{color:#194fac}
+.set-row{padding:14px 18px;margin-bottom:12px}
+.set-row .lbl{display:inline-block;width:300px;font-weight:700;vertical-align:middle}
+.small{font-size:16px;color:#4a5b78;margin-top:6px}
+.guard{position:absolute;z-index:20;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.56)}
+.guard-card{position:absolute;top:50%;left:50%;width:470px;-webkit-transform:translate(-50%,-50%);transform:translate(-50%,-50%);padding:28px}
+.guard-card p{margin:14px 0 24px;font-size:20px;line-height:1.5}
+.guard-card .actions{text-align:right}
+.guard-card .actions button{min-width:130px}
+.danger{background:#c0392b;color:#fff;border-color:#c0392b}
+.notice{position:absolute;z-index:15;left:26px;right:26px;bottom:16px;background:#172f55;color:#fff;padding:14px 18px;border-radius:12px;font-size:20px}
+.notice button{float:right;min-height:44px;margin-top:-4px}
+#rotate{display:none}
+@media screen and (orientation:portrait){
+#rotate{display:block;position:fixed;z-index:99;top:0;left:0;right:0;bottom:0;background:#172f55;color:#fff;font-size:34px;font-weight:700;text-align:center;padding-top:40%}
+}
+
+.nav .rq-open{float:right;margin-right:0;background:#0d7a43;color:#fff;border-color:#0d7a43}
+.rq{position:fixed;z-index:50;top:0;right:0;bottom:0;left:0;background:#0a1020;color:#fff;text-align:center}
+.rq-head{position:absolute;top:0;left:0;right:0;height:64px;padding:0 26px;border-bottom:3px solid #194fac;background:#000;text-align:left}
+.rq-brand{display:inline-block;line-height:64px;font-family:Georgia,"Hiragino Mincho ProN",serif;font-size:28px;font-weight:700;letter-spacing:.3em;color:#fff}
+.rq-timer{float:right;margin-top:10px;padding:0 18px;border:2px solid #4c86e6;border-radius:30px;font-family:Menlo,monospace;font-size:28px;font-weight:700;line-height:40px;color:#fff;background:#10234a}
+.rq-body{position:absolute;top:64px;bottom:0;left:0;right:0;padding:10px 26px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.rq-body h2{font-size:26px;line-height:1.2}
+.rq-multi{display:inline-block;margin-top:6px;padding:4px 22px;border-radius:30px;background:#f2b705;color:#2a1d00;font-size:26px;font-weight:700}
+.rq-qr{position:relative;width:400px;height:400px;margin:8px auto 4px;padding:0;background:#fff;border-radius:12px;border:4px solid #194fac;overflow:hidden}
+.rq-qr canvas{display:block;width:392px;height:392px}
+.rq-ng{display:none;position:absolute;top:0;left:0;right:0;bottom:0;padding:80px 26px;font-size:22px;line-height:1.6;color:#c0392b;background:#fff}
+.rq-note{font-size:19px;color:#cfd9ee}
+.rq-bar{width:400px;height:10px;margin:8px auto 0;border-radius:5px;background:#1d2b4d;overflow:hidden}
+.rq-bar div{height:100%;background:#4c86e6}
+.rq-sec{margin-top:4px;font-size:16px;color:#9fb0d0}
+.rq .rq-back{display:block;width:400px;height:64px;margin:12px auto 0;font-size:24px;color:#fff;background:#194fac;border:0;border-radius:12px}
+.rq .rq-back:active{background:#123d85}
+@media (max-height:700px){
+.rq-qr{width:300px;height:300px}
+.rq-qr canvas{width:292px;height:292px}
+.rq-bar,.rq .rq-back{width:300px}
+.rq-body h2{font-size:22px}
+.rq-multi{font-size:22px}
+.rq .rq-back{height:56px;font-size:22px}
+}

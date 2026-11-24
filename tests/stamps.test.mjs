@@ -100,43 +100,29 @@ test("タグは毎回同じ(同じ競技・同じ版なら、何度作っても�
 });
 
 import { buildTicketModel, TAP_NOTICE } from "../src/lib/domain/stampticket.ts";
-const T = { sport: "badminton", enabled: true, points: 2, tiers: { 3: 100, 5: 200 }, tapped: false, event: { startAt: "2026-11-23T10:00:00+09:00", venue: "播磨町総合体育館" }, feeYen: 500, partySize: 1 };
-test("チケット: かざす前は「本日の参加費」(今日が何ポイント目か)。参加費は申込時の料金から割引を引く", () => {
+import { DEFAULT_LAP_REWARDS } from "../src/lib/domain/stampcard2.ts";
+const T = { sport: "badminton", enabled: true, points: 2, lap: 1, rewards: DEFAULT_LAP_REWARDS, tapped: false, event: { startAt: "2026-11-23T10:00:00+09:00", venue: "播磨町総合体育館" }, feeYen: 500, partySize: 1 };
+test("チケット: 参加費は割り引かない(特典はクーポン)。次の特典までの案内と、3pt・5ptの特典ラベル", () => {
   const m = buildTicketModel(T, "たろう");
-  assert.deepEqual([m.phase, m.hasEvent, m.nextIndex, m.discountYen, m.priceYen], ["today", true, 3, 100, 400]);
-  assert.equal(m.nextText, "本日は 3ポイント目 ― 100円引き");
+  assert.deepEqual([m.phase, m.hasEvent, m.discountYen, m.priceYen, m.lap], ["today", true, 0, 500, 1]);
+  assert.equal(m.nextText, "1周目 ― 3ポイントで100円引き(あと1ポイント)");
   assert.match(m.kicker, /本日の参加費/);
   assert.deepEqual(m.slots.map((s) => [s.on, s.tier, s.label]), [[true, false, "1pt"], [true, false, "2pt"], [false, true, "100円引"], [false, false, "通常"], [false, true, "200円引"]]);
   assert.equal(m.participant, "たろう");
 });
-test("チケット: かざした後は「次回の参加費(目安)」。5ポイントの次は0に戻る案内", () => {
+test("チケット: 偶数周は特典が変わり(3pt=200円引き・5pt=無料)、色はゴールド。かざした後は次回の案内", () => {
+  const even = buildTicketModel({ ...T, lap: 2, points: 4 }, "たろう");
+  assert.equal(even.nextText, "2周目 ― 5ポイントで参加費1回無料(あと1ポイント)");
+  assert.deepEqual(even.slots.map((s) => s.label), ["1pt", "2pt", "3pt", "4pt", "無料"]);
+  assert.equal(even.accent, "#8a5d0b"); assert.notEqual(buildTicketModel(T, "たろう").accent, "#8a5d0b");
   const after = buildTicketModel({ ...T, points: 3, tapped: true, tapPoints: 3 }, "たろう", 3);
-  assert.deepEqual([after.phase, after.nextIndex, after.priceYen, after.slots[2].isNew], ["next", 4, 500, true]);
-  assert.equal(after.nextText, "次回は 4ポイント目 ― あと2回で 200円引き");
-  assert.match(after.kicker, /次回の参加費\(目安\)/);
-  const full = buildTicketModel({ ...T, points: 5, tapped: true, tapPoints: 5 }, "たろう");
-  assert.deepEqual([full.nextIndex, full.priceYen], [1, 500]);
-  assert.match(full.nextText, /0に戻り/);
+  assert.deepEqual([after.phase, after.slots[2].isNew], ["next", true]);
+  assert.match(after.kicker, /次回の参加費/);
 });
-test("チケット: 受付で割引が適用済みなら、その額をそのまま出す(二重に引かない)", () => {
-  // 割引前の参加費500円・2ポイント(今日は3ポイント目)・100円引きを適用済み → 400円(300円ではない)
-  const m = buildTicketModel({ ...T, appliedDiscountYen: 100 }, "たろう");
-  assert.deepEqual([m.priceYen, m.discountYen], [400, 100]);
-  assert.match(m.nextText, /受付で適用済み/);
-  // 適用額が参加費を超える値でも、参加費を超えない
-  assert.equal(buildTicketModel({ ...T, appliedDiscountYen: 900 }, "たろう").priceYen, 0);
-});
-test("チケット: 同行者がいる申込は、割引後の金額を出さない(受付で個別に調整するため)", () => {
-  const g = buildTicketModel({ ...T, partySize: 2 }, "たろう"); // 2ポイント(今日は3ポイント目=100円引きの回)
-  assert.deepEqual([g.priceYen, g.discountYen], [500, 0]);
-  assert.match(g.nextText, /100円引きの回.*受付で調整/);
-  const applied = buildTicketModel({ ...T, partySize: 2, appliedDiscountYen: 100 }, "たろう");
-  assert.equal(applied.priceYen, 400, "適用済み(個別に調整済み)なら、その額を出す");
-});
-test("チケット: 参加予定なしのときは、開催情報・料金を出さない。割引は参加費を超えない。同行者は「ほか○名」", () => {
+test("チケット: 参加予定なしのときは、開催情報・料金を出さない。同行者は「ほか○名」", () => {
   const none = buildTicketModel({ ...T, event: null, feeYen: 0 }, "たろう");
-  assert.deepEqual([none.hasEvent, none.priceYen, none.discountYen, none.participant, none.nextText], [false, 0, 0, "", ""]);
-  assert.equal(buildTicketModel({ ...T, points: 4, feeYen: 150 }, "たろう").priceYen, 0);
+  assert.deepEqual([none.hasEvent, none.priceYen, none.discountYen, none.participant], [false, 0, 0, ""]);
+  assert.equal(none.nextText, "1周目 ― 3ポイントで100円引き(あと1ポイント)", "参加予定がなくても、次の特典は出る");
   assert.equal(buildTicketModel({ ...T, partySize: 3 }, "たろう").participant, "たろう ほか2名");
 });
 test("かざした結果の案内文が、すべての結果に用意されている", () => {

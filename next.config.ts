@@ -29,7 +29,16 @@ const nextConfig: NextConfig = {
         { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
       ] },
       { source: "/stamp", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      { source: "/stamp/points", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       { source: "/stamp/settings", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      // 受付QR(署名つき)。Referer に漏らさず、キャッシュ・検索登録をしない。ふりた(同一オリジンで配信)の取得APIも同様。
+      { source: "/r/:eventId/:token", headers: [
+        { key: "Referrer-Policy", value: "no-referrer" }, { key: "Cache-Control", value: "no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+      ] },
+      { source: "/r/resume", headers: [{ key: "Cache-Control", value: "no-store" }, { key: "Referrer-Policy", value: "no-referrer" }] },
+      // ふりた: Application Cache(オフライン用)の定義は、専用のContent-Typeで配信し、常に最新を確認させる(iOS 9.3.5向け)
+      { source: "/furita/furita.appcache", headers: [{ key: "Content-Type", value: "text/cache-manifest; charset=utf-8" }, { key: "Cache-Control", value: "no-cache" }] },
+      { source: "/furita/:path*", headers: [{ key: "Cache-Control", value: "no-cache" }] },
       // 個別管理URLを Referer 経由で外部に漏らさない
       { source: "/events/:id/r/:token", headers: [
         { key: "Referrer-Policy", value: "no-referrer" },
@@ -37,6 +46,8 @@ const nextConfig: NextConfig = {
       ] },
     ];
   },
+  // /furita は、相対パス(Application Cache の定義など)が正しく解決されるよう、index.html のURLへ移す
+  async redirects() { return [{ source: "/furita", destination: "/furita/index.html", permanent: false }, { source: "/furita/", destination: "/furita/index.html", permanent: false }]; },
   // Cache Components / use cache は使わない(2026-11-03 公開の Next.js Moderate 脆弱性の対象。docs/security-review.md)
   turbopack: {
     rules: {

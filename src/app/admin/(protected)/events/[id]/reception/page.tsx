@@ -5,14 +5,18 @@ import { getEventAny } from "@/lib/repo/adminEvents";
 import { listPayments, listRegs } from "@/lib/repo/reception";
 import { amountDue, balance, matches, totals } from "@/lib/domain/reception";
 import { dateText, timeText } from "@/lib/format";
+import { TabletCode } from "./TabletCode";
 import { QuickReception } from "./QuickReception";
-import { addMemberParticipantAction, checkInAction, stampDiscountAction, feeAction, groupPayAction, listVisibilityAction, payAction, removeParticipantAction, voidAction, walkInAction } from "./actions";
+import { addMemberParticipantAction, checkInAction, decideWalkinAction, useCouponAction, feeAction, groupPayAction, listVisibilityAction, payAction, removeParticipantAction, voidAction, walkInAction } from "./actions";
 import { listMembers } from "@/lib/repo/members";
-import { stampDiscounts } from "@/lib/repo/stamps";
+import { eventStampStatus } from "@/lib/repo/stampadmin";
+import { settleEventStamps } from "@/lib/repo/stamps";
+import { listWalkinRequests } from "@/lib/repo/receptionqr";
 
 export const dynamic = "force-dynamic";
 const yen = (n: number) => `${n.toLocaleString()}円`;
-const SRC: Record<string, string> = { walkin: "飛び入り", web: "" };
+const SRC: Record<string, string> = { walkin: "飛び入り(当日)", qr_walkin: "当日参加(QR)", web: "事前予約" };
+const jt = (ms: number) => `${dateText(new Date(ms).toISOString())} ${timeText(new Date(ms).toISOString())}`;
 
 export default async function Reception({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ q?: string; err?: string; ok?: string }> }) {
   await requireAdmin();
@@ -21,7 +25,9 @@ export default async function Reception({ params, searchParams }: { params: Prom
   const q = (sp.q ?? "").slice(0, 50);
   let e, regs, pays;
   const membersAll = await listMembers().catch(() => []);
-  const sd = await stampDiscounts(id).catch(() => ({} as Awaited<ReturnType<typeof stampDiscounts>>)); // スタンプ割引の状況(表示専用。適用はサーバーで再計算する)
+  await settleEventStamps(id).catch(() => 0); // 受付・支払いが済んでいて、確定だけが残っているものを確定し直す
+  const ss = await eventStampStatus(id).catch(() => ({} as Awaited<ReturnType<typeof eventStampStatus>>)); // スタンプの状況(表示専用。付与・クーポン使用はサーバーで再判定する)
+  const reqs = await listWalkinRequests(id).catch(() => []);
   try { [e, regs, pays] = await Promise.all([getEventAny(id), listRegs(id), listPayments(id)]); }
   catch { return <main className="p-4">読み込めませんでした。時間をおいて再度お試しください。</main>; }
   if (!e) notFound();
@@ -45,6 +51,20 @@ export default async function Reception({ params, searchParams }: { params: Prom
         <div className="rounded border p-2">受付 {checked.reduce((n, r) => n + r.partySize, 0)} / {active.reduce((n, r) => n + r.partySize, 0)} 人{waiting > 0 && <span>（待ち {waiting} 件）</span>}</div>
         <div className="rounded border p-2">予定額 {yen(t.expected)}<br />入金実績 {yen(t.received)}<br />未収 {yen(t.outstanding)}</div>
       </section>
+
+      <TabletCode eventId={id} />
+
+      {reqs.length > 0 && (
+        <section className="space-y-2 rounded border border-amber-400 p-3 text-sm">
+          <h2 className="font-semibold">承認待ちの当日参加({reqs.length}件)</h2>
+          <ul className="space-y-2">{reqs.map((x) => (
+            <li key={x.memberId} className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold">{x.nickname}</span><span className="text-gray-600">{x.reason === "full" ? "定員に達しています" : "開催終了後の登録"} ・ {jt(x.at)}</span>
+              <form action={decideWalkinAction.bind(null, id, x.memberId, true)}><input type="hidden" name="q" value={q} /><button className="rounded border border-green-700 px-3 py-1.5 text-green-800">承認(受付済みで追加)</button></form>
+              <form action={decideWalkinAction.bind(null, id, x.memberId, false)}><input type="hidden" name="q" value={q} /><button className="rounded border px-3 py-1.5">却下</button></form>
+            </li>))}</ul>
+        </section>
+      )}
 
       <QuickReception eventId={id} regs={active.map((r) => ({ id: r.id, nickname: r.nickname, members: r.members, partySize: r.partySize, checkedIn: r.checkedIn, balance: Math.max(0, balance(r)), reconfirm: r.reconfirm }))} />
 
@@ -75,19 +95,19 @@ export default async function Reception({ params, searchParams }: { params: Prom
                   <div className="text-sm">料金 {yen(r.feeYen)}×{r.partySize} = {yen(amountDue(r))} / 入金 {yen(r.paidYen)} / <strong>{bal > 0 ? `残 ${yen(bal)}` : "支払い済み"}</strong></div>
                 </div>
               </div>
-              {sd[r.id]?.enabled && (
-                <div className="rounded-xl bg-blue-50 p-2 text-sm">
-                  スタンプ {sd[r.id].points}/5 ・ 今日は {sd[r.id].index}ポイント目
-                  {sd[r.id].applied != null ? <span> ・ 割引 {yen(sd[r.id].applied as number)} を適用済み</span>
-                    : sd[r.id].discountYen <= 0 ? <span> ・ 割引なし</span>
-                    : r.partySize === 1 ? (
-                      <form action={stampDiscountAction.bind(null, id, r.id)} className="mt-1">
-                        <input type="hidden" name="q" value={q} />
-                        <button className="rounded border border-blue-700 px-3 py-1.5 font-semibold text-blue-800">スタンプ割引 -{yen(sd[r.id].discountYen)} を適用</button>
-                      </form>
-                    ) : <span> ・ 割引 {yen(sd[r.id].discountYen)}(同行者がいるため、「個別料金を変更」で調整してください)</span>}
-                </div>
-              )}
+              <div className="rounded-xl bg-blue-50 p-2 text-sm">
+                {SRC[r.source] ?? "事前予約"} ・ {r.checkedIn ? `受付済み${ss[r.id]?.checkedInAt ? `(${jt(ss[r.id].checkedInAt as number)})` : ""}` : "未受付"} ・ {bal <= 0 && amountDue(r) > 0 ? "支払い確認済み" : amountDue(r) === 0 ? "参加費0円" : "未払い"} ・ スタンプ{ss[r.id]?.state === "awarded" ? "付与済み(受付・支払いを取り消しても、ポイントは自動では戻りません。必要なら「会員のスタンプ操作」で取り消してください)" : ss[r.id]?.state === "waiting" ? "付与待ち(受付+支払い確認で確定)" : "対象外(会員未連携)"}
+                {ss[r.id]?.couponYen != null && <span> ・ クーポン {yen(ss[r.id].couponYen as number)} 引き 適用済み</span>}
+                {(ss[r.id]?.coupons.length ?? 0) > 0 && (
+                  <form action={useCouponAction.bind(null, id, r.id)} className="mt-1 flex flex-wrap gap-1">
+                    <input type="hidden" name="q" value={q} />
+                    <select name="couponId" className="rounded border p-2" aria-label="使うクーポン">
+                      {ss[r.id].coupons.map((c) => <option key={c.id} value={c.id}>{c.kind === "free" ? "参加費無料" : `${yen(c.yen)}引き`}({c.lap > 0 ? `${c.lap}周目${c.threshold}pt` : "管理者発行"})</option>)}
+                    </select>
+                    <button className="rounded border border-blue-700 px-3 py-1.5 font-semibold text-blue-800">クーポンを使う</button>
+                  </form>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 <form action={checkInAction.bind(null, id, r.id, !r.checkedIn)}>
                   <input type="hidden" name="q" value={q} />

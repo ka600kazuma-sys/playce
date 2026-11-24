@@ -29,6 +29,7 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
       const m = await db().collection("members").doc(id).get();
       if (m.exists) { await db().collection("nicknames").doc(m.data().nicknameKey).delete(); await m.ref.delete(); }
       for (const sp of ["badminton", "volleyball"]) await db().collection("stampCards").doc(`${id}_${sp}`).delete().catch(() => {});
+      const cs = await db().collection("coupons").where("memberId", "==", id).get(); for (const c of cs.docs) await c.ref.delete();
     }
     for (const h of sessionHashes) await db().collection("memberSessions").doc(h).delete().catch(() => {});
     for (const id of eventIds) { await db().recursiveDelete(db().collection("events").doc(id)); }
@@ -80,7 +81,7 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal((await S.tap(a.id, e1, await S.currentTagToken("badminton"))).result, "already", "NFCでも、もう付かない");
     assert.equal(await pts(a), 2);
     const t = (await db().collection("events").doc(e1).collection("stampTaps").doc(a.id).get()).data();
-    assert.ok(t.via === "qr" && t.count === 2 && t.pointsBefore === 0 && t.pointsAfter === 2);
+    assert.ok(t.via === "qr" && t.count === 2 && t.totalBefore === 0 && t.pointsAfter === 2);
     // NFCで付いた人には、QRは付かない
     const b = await mkMember("QB"), e2 = await mkEvent(); await apply(e2, b); await settle(e2); await S.setEnabled(b.id, "badminton", true);
     assert.equal((await tp(b, e2)).result, "ok");
@@ -128,7 +129,7 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal(await pts(m), 0);
     assert.equal((await db().collection("events").doc(e).collection("stampTaps").doc(m.id).get()).exists, false, "OFFでは記録も残らない");
     await S.setEnabled(m.id, "badminton", true);
-    assert.deepEqual(await tp(m, e), { result: "ok", sport: "badminton", points: 1 });
+    assert.deepEqual(await tp(m, e), { result: "ok", sport: "badminton", points: 1, count: 1 });
     assert.equal((await tp(m, e)).result, "already");
     assert.equal(await pts(m), 1);
     await S.setEnabled(m.id, "badminton", false);
@@ -174,7 +175,8 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     const m = await mkMember("E"); await S.setEnabled(m.id, "badminton", true); await S.setEnabled(m.id, "volleyball", true);
     const got = [];
     for (let i = 0; i < 6; i++) { const e = await mkEvent(); await apply(e, m); got.push((await tp(m, e)).points); }
-    assert.deepEqual(got, [1, 2, 3, 4, 5, 1]);
+    // 5ポイントに届くと次の周へ(周内は0)。旧仕様: 5の次は1。
+    assert.deepEqual(got, [1, 2, 3, 4, 0, 1]);
     const v = await mkEvent({ sport: "volleyball" }); await apply(v, m);
     assert.equal((await tp(m, v)).points, 1, "バレーボールは別の台紙");
     assert.equal(await pts(m, "badminton"), 1);
@@ -199,48 +201,6 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     const t = (await S.getTickets(m.id)).find((x) => x.sport === "badminton");
     assert.deepEqual([t.event?.id, t.event?.venue, t.feeYen, t.partySize], [e, "テスト会場", 700, 2]);
     assert.equal((await S.getTickets(m.id)).find((x) => x.sport === "volleyball").event, null, "別の競技には出ない");
-  });
-
-  test("スタンプ割引: 3ポイント目の回に適用。二重適用なし・同行者あり/OFF/入金超過は拒否・金額はサーバーで計算", T, async () => {
-    const m = await mkMember("H"), e = await mkEvent(); await apply(e, m); const reg = await regOf(e, m);
-    await S.setEnabled(m.id, "badminton", true);
-    await db().collection("stampCards").doc(`${m.id}_badminton`).update({ points: 2 });
-    let d = (await S.stampDiscounts(e))[reg.id];
-    assert.deepEqual([d.enabled, d.points, d.tapped, d.index, d.discountYen, d.applied], [true, 2, false, 3, 100, null]);
-    assert.equal(await S.applyStampDiscount(e, reg.id, "test"), "ok");
-    const after = await regOf(e, m);
-    assert.deepEqual([after.feeYen, after.baseFeeYen, after.stampDiscountYen, after.stampDiscountIndex], [400, 500, 100, 3]);
-    assert.equal(await S.applyStampDiscount(e, reg.id, "test"), "already");
-    assert.equal((await S.stampDiscounts(e))[reg.id].applied, 100);
-    // その後かざしても、割引は二重にならない(いまの回=3ポイント目のまま)
-    assert.equal((await tp(m, e)).points, 3);
-    assert.equal((await regOf(e, m)).feeYen, 400);
-    const log = await db().collection("events").doc(e).collection("audit").where("action", "==", "stamp_discount").get();
-    assert.equal(log.size, 1, "監査ログが1件");
-    // 同行者あり
-    const g = await mkMember("H2"), e2 = await mkEvent(); await apply(e2, g, ["とも"]); await S.setEnabled(g.id, "badminton", true);
-    await db().collection("stampCards").doc(`${g.id}_badminton`).update({ points: 2 });
-    assert.equal(await S.applyStampDiscount(e2, (await regOf(e2, g)).id, "test"), "group");
-    // OFF
-    const o = await mkMember("H3"), e3 = await mkEvent(); await apply(e3, o);
-    assert.equal(await S.applyStampDiscount(e3, (await regOf(e3, o)).id, "test"), "off");
-    // 割引なしの回(1ポイント目)
-    const p = await mkMember("H4"), e4 = await mkEvent(); await apply(e4, p); await S.setEnabled(p.id, "badminton", true);
-    assert.equal(await S.applyStampDiscount(e4, (await regOf(e4, p)).id, "test"), "no_discount");
-    // 入金済みの額を下回る
-    const q = await mkMember("H5"), e5 = await mkEvent(); await apply(e5, q); await S.setEnabled(q.id, "badminton", true);
-    await db().collection("stampCards").doc(`${q.id}_badminton`).update({ points: 4 });
-    const rq = await regOf(e5, q); await db().collection("events").doc(e5).collection("registrations").doc(rq.id).update({ paidYen: 450 });
-    assert.equal(await S.applyStampDiscount(e5, rq.id, "test"), "paid", "5ポイント目の200円引き→300円は、入金済み450円を下回る");
-    assert.equal((await regOf(e5, q)).feeYen, 500, "拒否のときは料金が変わらない");
-    // 会計確定済み
-    const r = await mkMember("H6"), e6 = await mkEvent(); await apply(e6, r); await S.setEnabled(r.id, "badminton", true);
-    await db().collection("stampCards").doc(`${r.id}_badminton`).update({ points: 2 });
-    await db().collection("accounting").doc(e6).set({ closed: true });
-    assert.equal(await S.applyStampDiscount(e6, (await regOf(e6, r)).id, "test"), "closed");
-    await db().collection("accounting").doc(e6).delete();
-    // 不正なID
-    assert.equal(await S.applyStampDiscount("../x", "y", "test"), "not_found");
   });
 
   test("割引額の設定: 不正な値は拒否(保存しない)。正しい値は保存され履歴が残る(本番の設定は変えないよう、いまと同じ値で確認)", T, async () => {
@@ -275,19 +235,6 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal((await tapRef.get()).exists, false); assert.equal((await cardRef.get()).exists, false);
   });
 
-  test("複数のイベント: 割引の回は、そのイベントでかざしたときのポイントで決まる(あとの別イベントに影響されない)", T, async () => {
-    const m = await mkMember("L"), x = await mkEvent(), y = await mkEvent();
-    await apply(x, m); await apply(y, m); await S.setEnabled(m.id, "badminton", true);
-    await db().collection("stampCards").doc(`${m.id}_badminton`).update({ points: 2 });
-    assert.equal((await tp(m, x)).points, 3); assert.equal((await tp(m, y)).points, 4);
-    const rx = await regOf(x, m), ry = (await db().collection("events").doc(y).collection("registrations").where("memberId", "==", m.id).get()).docs[0];
-    assert.equal((await S.stampDiscounts(x))[rx.id].index, 3, "Xは3ポイント目の回のまま");
-    assert.equal((await S.stampDiscounts(x))[rx.id].discountYen, 100);
-    assert.equal(await S.applyStampDiscount(x, rx.id, "test"), "ok");
-    assert.equal((await regOf(x, m)).feeYen, 400);
-    assert.equal(await S.applyStampDiscount(y, ry.id, "test"), "no_discount", "Yは4ポイント目の回で割引なし");
-  });
-
   test("再発行のあと、古いURLでは付かない(付与と同じトランザクションで版を確認)。テストのあとで版を元に戻す", T, async () => {
     const m = await mkMember("M"), e = await mkEvent(); await apply(e, m); await S.setEnabled(m.id, "badminton", true); await settle(e);
     const old = await S.currentTagToken("badminton");
@@ -306,14 +253,6 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     }
   });
 
-  test("チケットの参加費は、割引前の額(申込時の料金)で渡し、適用済みの割引は別に返す(二重に引かない)", T, async () => {
-    const m = await mkMember("N"), e = await mkEvent({ offsetHours: 2 }); await apply(e, m); await S.setEnabled(m.id, "badminton", true);
-    await db().collection("stampCards").doc(`${m.id}_badminton`).update({ points: 2 });
-    assert.equal(await S.applyStampDiscount(e, (await regOf(e, m)).id, "test"), "ok");
-    const t = (await S.getTickets(m.id)).find((x) => x.sport === "badminton");
-    assert.deepEqual([t.event?.id, t.feeYen, t.appliedDiscountYen, t.tapped, t.tapPoints], [e, 500, 100, false, null]);
-  });
-
   test("メンバーがいなければ、カードも記録も作らない(削除と同時の設定・読み取りで残らない)", T, async () => {
     const m = await mkMember("O"), e = await mkEvent(); await apply(e, m); await S.setEnabled(m.id, "badminton", true); await settle(e);
     assert.equal(await Mem.deleteMemberRecord(m.id, "test", 0), "ok");
@@ -328,9 +267,9 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     await apply(x, m); await apply(y, m); await settle(x); await settle(y); await settle(other); // other は申し込まない
     await S.setEnabled(m.id, "badminton", true);
     const tk = await S.currentTagToken("badminton");
-    assert.deepEqual(await S.tapBySport(m.id, "badminton", tk), { result: "ok", sport: "badminton", points: 1 });
+    assert.deepEqual(await S.tapBySport(m.id, "badminton", tk), { result: "ok", sport: "badminton", points: 1, count: 1 });
     assert.equal((await db().collection("events").doc(x).collection("stampTaps").doc(m.id).get()).exists, true, "開始の早いXに付く");
-    assert.deepEqual(await S.tapBySport(m.id, "badminton", tk), { result: "ok", sport: "badminton", points: 2 }, "同じタグで、次はY");
+    assert.deepEqual(await S.tapBySport(m.id, "badminton", tk), { result: "ok", sport: "badminton", points: 2, count: 1 }, "同じタグで、次はY");
     assert.equal((await db().collection("events").doc(y).collection("stampTaps").doc(m.id).get()).exists, true);
     assert.equal((await S.tapBySport(m.id, "badminton", tk)).result, "already", "開催中の分はすべて取得済み");
     assert.equal((await db().collection("events").doc(other).collection("stampTaps").doc(m.id).get()).exists, false, "申し込んでいないイベントには付かない");
@@ -409,5 +348,13 @@ if (process.env.RUN_FIRESTORE_TESTS !== "1" || process.env.FIRESTORE_EMULATOR_HO
     assert.equal((await get("/stamp/settings")).status, 200);
     // 管理画面は未ログインでログインへ
     for (const p of ["/admin/stamp"]) assert.equal((await get(p)).status, 307, p);
+  });
+}
+
+if (process.env.RUN_FIRESTORE_TESTS === "1" && !process.env.FIRESTORE_EMULATOR_HOST) {
+  test("直接値引きは廃止(クーポンのみ)", async () => {
+    const S2 = await import("@/lib/repo/stamps");
+    assert.equal(await S2.applyStampDiscount("x", "y", "t"), "retired");
+    assert.deepEqual(await S2.stampDiscounts("x"), {});
   });
 }

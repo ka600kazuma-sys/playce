@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getMember } from "@/lib/auth/member";
-import { getCards, getTiers } from "@/lib/repo/stamps";
+import { getCards, getRewards } from "@/lib/repo/stamps";
+import { rewardText } from "@/lib/domain/stampticket";
 import { STAMP_SPORTS, STAMP_SPORT_LABEL } from "@/lib/domain/stamps";
 import { toggleStampAction } from "./actions";
 
@@ -19,7 +20,7 @@ export default async function StampSettings({ searchParams }: { searchParams: Pr
     );
   }
   const sp = await searchParams;
-  const [cards, tiers] = await Promise.all([getCards(m.id), getTiers()]);
+  const [cards, rewards] = await Promise.all([getCards(m.id), getRewards()]);
   const card = "rounded-2xl border border-line bg-surface p-4";
   return (
     <main className="mx-auto max-w-md space-y-4 py-4">
@@ -53,16 +54,16 @@ export default async function StampSettings({ searchParams }: { searchParams: Pr
         </ul>
       </section>
       <section className={card}>
-        <h2 className="mb-2 font-serif text-base font-bold">割引</h2>
+        <h2 className="mb-2 font-serif text-base font-bold">特典(クーポン)</h2>
         <table className="w-full text-sm">
-          <thead><tr className="text-left text-xs text-soft"><th className="py-1">ポイント</th>{STAMP_SPORTS.map((s) => <th key={s}>{STAMP_SPORT_LABEL[s]}</th>)}</tr></thead>
+          <thead><tr className="text-left text-xs text-soft"><th className="py-1">到達</th><th>奇数周(1・3・5周目)</th><th>偶数周(2・4・6周目)</th></tr></thead>
           <tbody>
             {([3, 5] as const).map((p) => (
-              <tr key={p} className="border-t border-line"><td className="py-2">{p}ポイント目</td>{STAMP_SPORTS.map((s) => <td key={s}>{tiers[s][p]}円引き</td>)}</tr>
+              <tr key={p} className="border-t border-line"><td className="py-2">{p}ポイント</td><td>{rewardText(rewards.odd[p])}</td><td>{rewardText(rewards.even[p])}</td></tr>
             ))}
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-soft">割引は、当日の受付・支払い時に適用されます。割引額は、変わることがあります。</p>
+        <p className="mt-2 text-xs text-soft">5ポイントに届くと次の周に進み、超えた分は次の周に繰り越されます。特典はクーポンとして発行され、「ポイント・クーポン」の画面で確認できます。内容は、変わることがあります。</p>
       </section>
     </main>
   );

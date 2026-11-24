@@ -25,6 +25,7 @@ export const eventSchema = z.object({
   notes: z.string().max(1000).default(""),
   status: z.enum(EVENT_STATUS),
   seriesId: z.string().max(64).optional(), // 定期開催の同一シリーズ
+  stampMultiplier: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(1), // スタンプ倍率(1=通常)
 }).refine((e) => new Date(e.endAt) > new Date(e.startAt), { message: "終了時刻は開始時刻より後にしてください", path: ["endAt"] });
 export type EventInput = z.infer<typeof eventSchema>;
 export const STATUS_LABEL: Record<EventStatus, string> = {

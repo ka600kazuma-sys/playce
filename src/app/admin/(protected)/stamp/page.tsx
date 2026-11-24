@@ -23,6 +23,8 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
   return (
     <main className="space-y-4">
       <h1 className="text-xl font-bold">スタンプカード</h1>
+      <nav className="flex flex-wrap gap-2 text-sm"><a href="/admin/stamp/members" className="rounded border px-3 py-2">会員のスタンプ操作(付与・取り消し・クーポン)</a><a href="/admin/stamp/settings" className="rounded border px-3 py-2">特典内容・クーポンの設定</a></nav>
+      <p className="rounded border border-amber-400 p-2 text-xs">下の「割引額」は旧方式(直接値引き)の設定で、現在は使われません。特典は、上の「特典内容・クーポンの設定」で決めます。</p>
       {sp.ok === "1" && <p className="rounded border p-3 text-sm">割引額を保存しました(履歴に残ります)。</p>}
       {sp.ok === "2" && <p className="rounded border p-3 text-sm">タグのURLを再発行しました。古いURL・タグ・QRは使えません。新しいURLをタグに書き込み直してください。</p>}
       {sp.err && <p role="alert" className="rounded border border-red-400 p-3 text-sm">{ERR[sp.err] ?? ERR["2"]}</p>}
