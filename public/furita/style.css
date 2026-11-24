@@ -85,17 +85,19 @@ header p{text-align:right;font-size:18px;font-weight:700}
 }
 
 .nav .rq-open{float:right;margin-right:0;background:#0d7a43;color:#fff;border-color:#0d7a43}
-.rq{position:fixed;z-index:50;top:0;right:0;bottom:0;left:0;background:#fff;color:#111;text-align:center}
-.rq-top{position:absolute;top:0;left:0;right:0;height:84px;padding:14px 26px;background:#172f55;text-align:left}
-.rq-top button{min-width:200px;min-height:56px;font-size:22px}
-.rq-timer{float:right;font-family:Menlo,monospace;font-size:34px;font-weight:700;color:#fff;line-height:56px}
-.rq-body{position:absolute;top:84px;bottom:0;left:0;right:0;padding:14px 26px}
-.rq-body h2{font-size:30px}
-.rq-multi{display:inline-block;margin-top:8px;padding:6px 22px;border-radius:30px;background:#f2b705;color:#3a2a00;font-size:30px;font-weight:700}
-.rq-qr{position:relative;width:420px;height:420px;margin:8px auto 4px}
-.rq-qr canvas{width:420px;height:420px;border:1px solid #ccc}
-.rq-ng{display:none;position:absolute;top:0;left:0;right:0;bottom:0;padding:90px 30px;font-size:24px;line-height:1.6;color:#c0392b;background:#fff}
-.rq-note{font-size:21px}
-.rq-bar{width:420px;height:12px;margin:8px auto 0;border-radius:6px;background:#dbe6f6;overflow:hidden}
-.rq-bar div{height:100%;background:#194fac}
-.rq-sec{margin-top:4px;font-size:18px;color:#555}
+.rq{position:fixed;z-index:50;top:0;right:0;bottom:0;left:0;background:#0a1020;color:#fff;text-align:center}
+.rq-head{position:absolute;top:0;left:0;right:0;height:64px;padding:0 26px;border-bottom:3px solid #194fac;background:#000;text-align:left}
+.rq-brand{display:inline-block;line-height:64px;font-family:Georgia,"Hiragino Mincho ProN",serif;font-size:28px;font-weight:700;letter-spacing:.3em;color:#fff}
+.rq-timer{float:right;margin-top:10px;padding:0 18px;border:2px solid #4c86e6;border-radius:30px;font-family:Menlo,monospace;font-size:28px;font-weight:700;line-height:40px;color:#fff;background:#10234a}
+.rq-body{position:absolute;top:64px;bottom:0;left:0;right:0;padding:10px 26px}
+.rq-body h2{font-size:26px;line-height:1.2}
+.rq-multi{display:inline-block;margin-top:6px;padding:4px 22px;border-radius:30px;background:#f2b705;color:#2a1d00;font-size:26px;font-weight:700}
+.rq-qr{position:relative;width:400px;height:400px;margin:8px auto 4px;padding:0;background:#fff;border-radius:12px;border:4px solid #194fac;overflow:hidden}
+.rq-qr canvas{display:block;width:392px;height:392px}
+.rq-ng{display:none;position:absolute;top:0;left:0;right:0;bottom:0;padding:80px 26px;font-size:22px;line-height:1.6;color:#c0392b;background:#fff}
+.rq-note{font-size:19px;color:#cfd9ee}
+.rq-bar{width:400px;height:10px;margin:8px auto 0;border-radius:5px;background:#1d2b4d;overflow:hidden}
+.rq-bar div{height:100%;background:#4c86e6}
+.rq-sec{margin-top:4px;font-size:16px;color:#9fb0d0}
+.rq .rq-back{display:block;width:400px;height:64px;margin:12px auto 0;font-size:24px;color:#fff;background:#194fac;border:0;border-radius:12px}
+.rq .rq-back:active{background:#123d85}

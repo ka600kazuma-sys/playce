@@ -52,7 +52,7 @@
     var qr, n, q = 4, cell, size, ctx, r, c;
     qr = window.qrcode(0, 'M'); qr.addData(text); qr.make();
     n = qr.getModuleCount();
-    size = 420; cell = Math.floor(size / (n + q * 2));
+    size = 400; cell = Math.floor(size / (n + q * 2));
     canvas.width = canvas.height = cell * (n + q * 2);
     ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -73,14 +73,15 @@
     }, false);
   }
   function build() {
-    var h = '<div class="rq-top"><button type="button" class="primary" data-rq="close">ふりたに戻る</button><span class="rq-timer" id="rq-timer"></span></div>';
+    var h = '<div class="rq-head"><span class="rq-brand">PLAYCE</span><span class="rq-timer" id="rq-timer"></span></div>';
     if (!rec) {
-      h += '<div class="rq-body"><h2>受付QRが未設定です</h2><p>インターネットにつないだ状態で、設定タブに「ふりた用コード」を入れて取得してください。</p></div>';
+      h += '<div class="rq-body"><h2>受付QRが未設定です</h2><p class="rq-note">インターネットにつないだ状態で、設定タブに「ふりた用コード」を入れて取得してください。</p><button type="button" class="rq-back" data-rq="close">ふりたに戻る</button></div>';
     } else {
       h += '<div class="rq-body"><h2>' + esc(rec.event.title) + '</h2>';
       if (rec.event.multiplier > 1) { h += '<p class="rq-multi">本日はスタンプ' + rec.event.multiplier + '倍DAY!</p>'; }
       h += '<div class="rq-qr"><canvas id="rq-canvas" width="10" height="10"></canvas><div class="rq-ng" id="rq-ng"></div></div>';
-      h += '<p class="rq-note">スマホのカメラでこのQRを読み取ってください(30秒ごとに切り替わります)</p><div class="rq-bar"><div id="rq-barin"></div></div><p class="rq-sec" id="rq-sec"></p></div>';
+      h += '<p class="rq-note">スマホのカメラで読み取ってください(30秒ごとに切り替わります)</p><div class="rq-bar"><div id="rq-barin"></div></div><p class="rq-sec" id="rq-sec"></p>';
+      h += '<button type="button" class="rq-back" data-rq="close">ふりたに戻る</button></div>';
     }
     rootEl.innerHTML = h;
     lastSlot = -1;
