@@ -1,0 +1,40 @@
+/* ポイント画面。既存のスタンプチケット(stamp.css)と同じ、紙のチケット風・PLAYCEのネイビー/ブルー。偶数周はブラック×ゴールドをアクセントにする。 */
+.pt-page { max-width: 460px; margin: 0 auto; padding: 4px 0 24px; color: #1a2a4a; }
+.pt-top { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 2px 10px; }
+.pt-top h1 { font-family: var(--font-serif); font-size: 20px; font-weight: 700; margin: 0; }
+.pt-link { font-size: 13px; color: #0f3f82; text-decoration: underline; text-underline-offset: 2px; }
+.pt-card { --accent: #0f3f82; --soft: #eef3fc; --ink: #0b3270; margin-bottom: 18px; border-radius: 10px; overflow: hidden; background: #fffdf7; border: 1px solid #c9d3e6; box-shadow: 0 10px 18px rgba(15, 63, 130, .14); }
+.pt-card.even { --accent: #1a1a1a; --soft: #f6efdc; --ink: #8a5d0b; border-color: #d9c58f; box-shadow: 0 10px 18px rgba(138, 93, 11, .16); }
+.pt-band { display: flex; justify-content: space-between; padding: 12px 16px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+.pt-card.even .pt-band { border-bottom: 3px solid #c9971c; }
+.pt-body { padding: 16px; }
+.pt-lap { font-family: var(--font-serif); font-size: 18px; }
+.pt-lap b { font-size: 34px; margin-right: 2px; color: var(--ink); }
+.pt-lap small { margin-left: 10px; font-family: var(--font-sans); font-size: 12px; color: #5b6680; letter-spacing: .08em; }
+.pt-points { margin: 6px 0 14px; font-family: var(--font-serif); }
+.pt-points b { font-size: 56px; line-height: 1; color: var(--ink); }
+.pt-points span { font-size: 16px; color: #5b6680; }
+.pt-slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 12px; border-radius: 8px; background: var(--soft); }
+.pt-slot { width: 100%; padding-top: 100%; position: relative; border-radius: 50%; border: 1.5px dashed #aab5cd; background: #fff; color: #8591ab; }
+.pt-slot > * { position: absolute; left: 0; right: 0; text-align: center; line-height: 1.1; }
+.pt-slot .n { top: 30%; font-weight: 700; font-size: 17px; }
+.pt-slot .t { top: 60%; font-size: 10px; letter-spacing: .02em; }
+.pt-slot.tier { border-color: #c8323c; color: #c8323c; }
+.pt-slot.on { border: 2px solid var(--accent); background: var(--accent); color: #fff; }
+.pt-card.even .pt-slot.on { background: #1a1a1a; border-color: #c9971c; color: #f2c14e; }
+.pt-next { margin: 14px 0 4px; font-size: 14px; }
+.pt-next b { color: var(--ink); font-size: 16px; }
+.pt-off { margin: 8px 0 0; font-size: 12px; color: #b3261e; }
+.pt-off a { text-decoration: underline; }
+.pt-visits { margin: 8px 0 0; font-size: 12px; color: #5b6680; }
+.pt-coupons h2 { font-family: var(--font-serif); font-size: 17px; margin: 6px 2px 8px; }
+.pt-coupons ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pt-coupon { display: grid; gap: 2px; padding: 12px 14px; border-radius: 8px; border: 1px dashed #0f3f82; background: #fff; border-left: 6px solid #0f3f82; }
+.pt-coupon.free { border-color: #c9971c; border-left-color: #c9971c; background: #fffaf0; }
+.pt-coupon b { font-family: var(--font-serif); font-size: 20px; }
+.pt-coupon span { font-size: 13px; }
+.pt-coupon small { font-size: 12px; color: #5b6680; }
+.pt-empty, .pt-hint { font-size: 13px; color: #5b6680; margin: 6px 2px; }
+.pt-past { margin-top: 12px; font-size: 13px; color: #5b6680; }
+.pt-past summary { cursor: pointer; }
+.pt-past li { padding: 4px 0; border-top: 1px solid #e3e8f2; }

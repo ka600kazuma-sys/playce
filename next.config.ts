@@ -29,6 +29,7 @@ const nextConfig: NextConfig = {
         { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
       ] },
       { source: "/stamp", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      { source: "/stamp/points", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       { source: "/stamp/settings", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       // 受付QR(署名つき)。Referer に漏らさず、キャッシュ・検索登録をしない。ふりた(同一オリジンで配信)の取得APIも同様。
       { source: "/r/:eventId/:token", headers: [

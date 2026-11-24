@@ -265,16 +265,16 @@ export async function tapBySport(memberId: string, sport: string, token: string,
 
 // ---- チケットの表示用データ(本人の分だけ) ----
 export type TicketView = {
-  sport: StampSport; enabled: boolean; points: number; tiers: Tiers;
+  sport: StampSport; enabled: boolean; points: number; lap: number; rewards: LapRewards;
   event: { id: string; title: string; startAt: string; endAt: string; venue: string } | null;
   feeYen: number; partySize: number; tapped: boolean;
-  // feeYen は割引前の参加費(申込時の料金)。appliedDiscountYen は、受付で適用済みのスタンプ割引。tapPoints は、このイベントでかざしたときのポイント。
-  appliedDiscountYen: number | null; tapPoints: number | null;
+  // feeYen は参加費(申込時の料金)。tapPoints は、このイベントでかざしたときの周内ポイント。
+  tapPoints: number | null;
 };
 export async function getTickets(memberId: string, now = Date.now()): Promise<TicketView[]> {
-  const [cards, tiers, events] = await Promise.all([getCards(memberId), getTiers(), listPublicEvents().catch(() => [])]);
+  const [cards, rewards, events] = await Promise.all([getCards(memberId), configRef().get().then(rewardsFromSnap).catch(() => DEFAULT_LAP_REWARDS), listPublicEvents().catch(() => [])]);
   return Promise.all(STAMP_SPORTS.map(async (sport): Promise<TicketView> => {
-    const base: TicketView = { sport, enabled: cards[sport].enabled, points: cards[sport].points, tiers: tiers[sport], event: null, feeYen: 0, partySize: 1, tapped: false, appliedDiscountYen: null, tapPoints: null };
+    const base: TicketView = { sport, enabled: cards[sport].enabled, points: cards[sport].points, lap: cards[sport].lap, rewards, event: null, feeYen: 0, partySize: 1, tapped: false, tapPoints: null };
     // その競技の、これから(または終了後6時間以内)の公開イベントのうち、参加確定の申込がある、いちばん近いもの。
     // その競技の、これから(または終了後6時間以内)の公開イベントのうち、90日先までを、申込の有無だけ調べる(1イベント1回の問い合わせ)。
     // 開始が近い順に並んでいるので、参加確定の申込がある最初のものが、いちばん近い開催。
@@ -291,7 +291,6 @@ export async function getTickets(memberId: string, now = Date.now()): Promise<Ti
     return {
       ...base, event: { id: e.id, title: e.title, startAt: e.startAt, endAt: e.endAt, venue: e.venue },
       feeYen: (Number.isInteger(d.baseFeeYen) ? d.baseFeeYen : d.feeYen) as number, partySize: d.partySize as number, tapped: !!tapDoc,
-      appliedDiscountYen: Number.isInteger(d.stampDiscountYen) ? (d.stampDiscountYen as number) : null,
       tapPoints: Number.isInteger(tapDoc?.pointsAfter) ? (tapDoc!.pointsAfter as number) : null,
     };
   }));
@@ -372,4 +371,28 @@ export async function settleEventStamps(eventId: string, now = Date.now()): Prom
   let n = 0;
   for (const d of regs) { try { if ((await settleVisitStamp(eventId, d.id, now)) === "awarded") n++; } catch { /* 次回の表示で再試行 */ } }
   return n;
+}
+
+// ---- 自分のポイント画面用(本人の分だけ。会員IDは、必ずログインのセッションから渡す) ----
+export type MyCoupon = { id: string; sport: StampSport; kind: "discount" | "free"; yen: number; lap: number; threshold: number; issuedAt: number; status: "active" | "used" | "cancelled"; usedAt: number | null; expiresAt: number | null; reason: string };
+export type MyPoints = { cards: Record<StampSport, Card & { visits: number }>; rewards: LapRewards; coupons: MyCoupon[] };
+export async function getMyPoints(memberId: string): Promise<MyPoints | null> {
+  if (!validId(memberId)) return null;
+  const [snaps, cfg, cps] = await Promise.all([
+    db().getAll(...STAMP_SPORTS.map((sp) => cardRef(memberId, sp))),
+    configRef().get(),
+    db().collection("coupons").where("memberId", "==", memberId).get(),
+  ]);
+  let rewards = DEFAULT_LAP_REWARDS; try { rewards = rewardsFromSnap(cfg); } catch { /* 壊れた設定は既定値で表示のみ(付与は失敗させる) */ }
+  const cards = {} as MyPoints["cards"];
+  STAMP_SPORTS.forEach((sp, i) => { const d = snaps[i].data(); cards[sp] = { ...cardOf(d), visits: Number.isInteger(d?.visits) ? d!.visits : 0 }; });
+  const coupons = cps.docs.map((d): MyCoupon => {
+    const x = d.data();
+    return { id: d.id, sport: x.sport, kind: x.kind === "free" ? "free" : "discount", yen: x.yen ?? 0, lap: x.lap ?? 0, threshold: x.threshold ?? 0, issuedAt: x.issuedAt ?? 0, status: x.status === "used" || x.status === "cancelled" ? x.status : "active", usedAt: x.usedAt ?? null, expiresAt: x.expiresAt ?? null, reason: x.reason ?? "" };
+  }).filter((c) => isStampSport(c.sport)).sort((a, b) => b.issuedAt - a.issuedAt);
+  return { cards, rewards, coupons };
+}
+
+export async function getRewards(): Promise<LapRewards> {
+  try { return rewardsFromSnap(await configRef().get()); } catch { return DEFAULT_LAP_REWARDS; }
 }

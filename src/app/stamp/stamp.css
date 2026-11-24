@@ -77,3 +77,6 @@
 .st-frame { position: relative; width: min(70vw, 60dvh); aspect-ratio: 1; border: 3px solid #fff; border-radius: 20px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.45); }
 .st-scanmsg { position: absolute; left: 12px; right: 12px; top: calc(16px + env(safe-area-inset-top)); text-align: center; color: #fff; font-weight: 600; background: rgba(0,0,0,.55); border-radius: 12px; padding: 10px; font-size: 14px; }
 .st-scanclose { position: absolute; bottom: calc(24px + env(safe-area-inset-bottom)); border: 2px solid #fff; background: rgba(0,0,0,.5); color: #fff; font-weight: 700; font-size: 17px; border-radius: 999px; padding: 12px 40px; }
+
+.st-pointslink { flex: none; text-align: center; padding: 4px 0; font-size: 14px; }
+.st-pointslink a { color: #0f3f82; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
