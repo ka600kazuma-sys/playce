@@ -67,3 +67,13 @@
 .st-ticket.off .st-offmark { display: flex; }
 .st-offmark span { transform: rotate(-8deg); border: 3px solid #556; color: #445; background: #fffffff2; padding: 3.4cqw 5cqw; border-radius: 10px; font-weight: 800; font-size: max(17px, 5.2cqw); line-height: 1.35; letter-spacing: .1em; text-align: center; }
 .st-offmark small { display: block; font-size: .58em; font-weight: 600; letter-spacing: .04em; margin-top: 6px; }
+
+/* アプリ内のQR読み取り */
+.st-scan { position: fixed; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 5; border: 0; border-radius: 999px; background: #1a2a4a; color: #fff; font-weight: 700; font-size: 15px; padding: 12px 18px; box-shadow: 0 4px 14px rgba(0,0,0,.28); }
+.st-scandlg { margin: 0; padding: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; border: 0; background: #000; }
+.st-scandlg::backdrop { background: #000; }
+.st-scanbox { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.st-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.st-frame { position: relative; width: min(70vw, 60dvh); aspect-ratio: 1; border: 3px solid #fff; border-radius: 20px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.45); }
+.st-scanmsg { position: absolute; left: 12px; right: 12px; top: calc(16px + env(safe-area-inset-top)); text-align: center; color: #fff; font-weight: 600; background: rgba(0,0,0,.55); border-radius: 12px; padding: 10px; font-size: 14px; }
+.st-scanclose { position: absolute; bottom: calc(24px + env(safe-area-inset-bottom)); border: 2px solid #fff; background: rgba(0,0,0,.5); color: #fff; font-weight: 700; font-size: 17px; border-radius: 999px; padding: 12px 40px; }

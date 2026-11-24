@@ -76,6 +76,19 @@ export function decideTap(i: TapInput): { result: TapResult; pointsAfter: number
   return { result: "ok", pointsAfter: nextPoints(i.points) };
 }
 
+// 付け忘れ用のQR: 1イベント・個数(1か2)ごとの署名つきURL。ポイントは、1個ずつ nextPoints を重ねて付ける(5の次は1)。
+export const QR_COUNTS = [1, 2] as const;
+export type QrCount = (typeof QR_COUNTS)[number];
+export const isQrCount = (n: unknown): n is QrCount => n === 1 || n === 2;
+export const addPoints = (points: number, count: number) => { let p = points; for (let i = 0; i < count; i++) p = nextPoints(p); return p; };
+const qrMac = (secret: string, eventId: string, count: number) => createHmac("sha256", secret).update(`stamp-qr:v1:${eventId}:${count}`).digest("base64url").slice(0, 32);
+export const qrToken = (secret: string, eventId: string, count: number) => qrMac(secret, eventId, count);
+export function verifyQrToken(secret: string, eventId: string, count: number, token: string): boolean {
+  if (secret.length < 16 || !isQrCount(count) || !/^[A-Za-z0-9_-]{32}$/.test(token)) return false;
+  const a = Buffer.from(token), b = Buffer.from(qrMac(secret, eventId, count));
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 // ---- タグのURL(HMACで署名。DBには版だけ保存し、秘密そのものは保存しない) ----
 // タグは競技ごとに1枚(バドミントン用・バレーボール用)で、毎回同じものを使う。署名の対象は「競技+版」。
 // 再発行 = その競技の版を1つ上げる。古い版のURLは検証で落ちる。別の競技のタグは使えない。

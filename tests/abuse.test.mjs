@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { signFormToken, verifyFormToken, clientIp, windowIndex } from "../src/lib/domain/abuse.ts";
+import { signFormToken, verifyFormToken, formTokenState, clientIp, windowIndex } from "../src/lib/domain/abuse.ts";
 
 const S = "test-secret-0123456789";
 const t0 = 1_800_000_000_000;
@@ -30,4 +30,13 @@ test("ウィンドウ番号は期間ごとに増える", () => {
   assert.equal(windowIndex(0, 600000), 0);
   assert.equal(windowIndex(599999, 600000), 0);
   assert.equal(windowIndex(600000, 600000), 1);
+});
+
+test("フォームトークンの状態: 早すぎ・期限切れ・不正を区別し、最短時間は指定できる", () => {
+  const t0 = 1_800_000_000_000, tok = signFormToken(S, t0);
+  assert.equal(formTokenState(S, tok, t0 + 500, 1000), "early");
+  assert.equal(formTokenState(S, tok, t0 + 1000, 1000), "ok");
+  assert.equal(formTokenState(S, tok, t0 + 2000), "early"); // 既定は3秒
+  assert.equal(formTokenState(S, tok, t0 + 3 * 3600 * 1000), "expired");
+  assert.equal(formTokenState(S, "abc", t0 + 5000), "bad");
 });

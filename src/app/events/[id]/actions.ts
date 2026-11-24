@@ -6,7 +6,7 @@ import { membersUpdateSchema, registrationInputSchema } from "@/lib/domain/regis
 import { changeRegistration, createRegistration } from "@/lib/repo/registrations";
 import { getMember } from "@/lib/auth/member";
 import { allow, requestIp } from "@/lib/repo/ratelimit";
-import { verifyFormToken } from "@/lib/domain/abuse";
+import { formTokenState } from "@/lib/domain/abuse";
 import { formSecret } from "@/lib/repo/formtoken";
 
 const BUSY = "短時間に操作が集中しています。しばらくしてからもう一度お試しください。";
@@ -32,8 +32,14 @@ export async function applyAction(eventId: string, fd: FormData) {
   // ボット対策: 隠し欄(人間は入力しない)と、描画時刻の署名つきトークン(短すぎる入力時間を拒否)
   if (String(fd.get("website") ?? "") !== "") fail("申込を完了できませんでした。");
   const secret = formSecret();
-  if (!secret || !verifyFormToken(secret, String(fd.get("_t") ?? ""), Date.now())) fail("フォームの有効時間が過ぎたか、入力が早すぎます。もう一度お試しください。");
+  // ボット対策の最短の入力時間(1.5秒)に満たないときは、エラーにせず、足りない分だけ待ってから進める(自動入力・素早い操作で申込が失敗しないように)。
   if (!(await allow("apply", await requestIp()))) fail(BUSY);
+  const raw = String(fd.get("_t") ?? "");
+  const ft = secret ? formTokenState(secret, raw, Date.now(), 0) : "bad";
+  if (ft === "expired") fail("入力画面を開いてから2時間以上たちました。お手数ですが、もう一度入力して、申し込んでください。");
+  if (ft !== "ok") fail("フォームを確認できませんでした。画面を開き直して、もう一度お試しください。");
+  const wait = 1500 - (Date.now() - Number(raw.split(".")[0]));
+  if (wait > 0) await new Promise((r) => setTimeout(r, Math.min(wait, 1500)));
   // 代表者のニックネームは、フォームの値ではなく、ログイン中のメンバーのニックネームを使う(なりすまし防止)
   const parsed = registrationInputSchema.safeParse({
     nickname: member!.nickname, members: members(fd),

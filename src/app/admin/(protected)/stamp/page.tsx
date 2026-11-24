@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth/session";
-import { adminStampEvents, adminStampTags, getTiers } from "@/lib/repo/stamps";
+import { adminQrTokens, adminStampEvents, adminStampTags, getTiers } from "@/lib/repo/stamps";
 import { STAMP_SPORTS, STAMP_SPORT_LABEL } from "@/lib/domain/stamps";
 import { dateText, timeText } from "@/lib/format";
 import { publicOrigin } from "@/lib/domain/origin";
@@ -77,7 +77,8 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
       </section>
 
       <section className="space-y-2">
-        <h2 className="font-semibold">イベントごとのスタンプ取得人数</h2>
+        <h2 className="font-semibold">イベントごとのスタンプ取得人数 / 付け忘れ用のQR(1個・2個)</h2>
+        <p className="text-xs text-gray-600">スタンプを付けられなかった人用のQRです。イベントごとに「1個」「2個」の2種類があり、参加者がアプリの「QRを読み取る」で読むと、そのイベントに、その個数のスタンプが付きます(参加確定の申込がある人が、1イベントにつき1回だけ。すでにタグで付いた人には付きません)。2個のQRは、前回も付けられなかった人用です(5ポイントの次は1に戻るため、4ポイントの人に2個付くと、1ポイントになります)。このQRは、そのイベントの終了から90日間、読み取れます(この画面に出るのは、終了から14日以内のイベントです)。同じイベントの1個用・2個用を、同時に参加者へ見せないでください(どちらか1回しか付きません)。読み取ってもらう間だけ表示し、撮影・共有はしないでください。</p>
         {events === null && <p className="text-sm text-red-700">読み込めませんでした。</p>}
         {events?.length === 0 && <p className="text-sm text-gray-500">対象のイベント(公開中のバドミントン・バレーボール)がありません。</p>}
         <ul className="space-y-1 text-sm">
@@ -85,6 +86,18 @@ export default async function AdminStamp({ searchParams }: { searchParams: Promi
             <li key={e.id} className="rounded border p-2">
               <span className="font-semibold">{e.title}</span> <span className="text-gray-600">({STAMP_SPORT_LABEL[e.sport]})</span>
               <div className="text-xs text-gray-600">{dateText(e.startAt)} {timeText(e.startAt)}〜 / {e.venue} / スタンプ取得 {e.taps}人</div>
+              {origin && adminQrTokens(e.id) && (
+                <details className="mt-2"><summary className="cursor-pointer font-semibold text-blue-800">付け忘れ用のQRを表示</summary>
+                  <div className="mt-2 grid gap-4 sm:grid-cols-2">
+                    {([1, 2] as const).map((n) => (
+                      <div key={n} className="space-y-1">
+                        <div className="font-semibold">スタンプ{n}個用</div>
+                        <QrCode text={`${origin}/stamp/q/${e.id}/${n}/${adminQrTokens(e.id)![n]}`} label={`${e.title} スタンプ${n}個用のQRコード`} fullscreenTitle={`スタンプ${n}個 ${e.title}`} />
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </li>
           ))}
         </ul>

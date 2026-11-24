@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/firebase/admin";
 import { eventSchema } from "@/lib/domain/events";
 import {
-  DEFAULT_TIERS, STAMP_SPORTS, TAP_AFTER_MS, TAP_LOOKBACK_MS, decideTap, discountFor, isStampSport, parseTiers, tagToken, tapWindow, verifyTagToken, visitIndex,
+  DEFAULT_TIERS, STAMP_SPORTS, TAP_AFTER_MS, TAP_LOOKBACK_MS, addPoints, isQrCount, qrToken, verifyQrToken, decideTap, discountFor, isStampSport, parseTiers, tagToken, tapWindow, verifyTagToken, visitIndex,
   type AllTiers, type StampSport, type TapResult, type Tiers,
 } from "@/lib/domain/stamps";
 import { formSecret } from "@/lib/repo/formtoken";
@@ -104,7 +104,7 @@ export async function bumpTagVersion(sport: string, by: string): Promise<number 
 }
 
 // ---- タグをかざす(ポイントの付与) ----
-export type TapOutcome = { result: TapResult; sport?: StampSport; points?: number };
+export type TapOutcome = { result: TapResult; sport?: StampSport; points?: number; count?: number };
 // 1つのイベントへの付与。token: 競技のタグの署名。付与と同じトランザクションで、現行の版かどうかを確認する(再発行との競合で、古いURLが通らないように)。
 export async function tap(memberId: string, eventId: string, token: string, now = Date.now()): Promise<TapOutcome> {
   if (!validId(memberId) || !validId(eventId)) return { result: "invalid" };
@@ -134,6 +134,36 @@ export async function tap(memberId: string, eventId: string, token: string, now 
     tx.create(tapRef(eventId, memberId), { memberId, eventId, sport: ev.sport, regId: confirmed.id, at: now, pointsBefore: c.points, pointsAfter: d.pointsAfter });
     tx.update(cardRef(memberId, ev.sport), { points: d.pointsAfter, lastTapAt: now, updatedAt: now });
     return { result: "ok", sport: ev.sport, points: d.pointsAfter };
+  });
+}
+
+// 付け忘れ用のQR(1個・2個)。そのイベントに、参加確定の申込がある人が、1回だけ読める(NFCのタグで付いていたら「取得済み」)。
+// 時間の範囲は、タグと同じ(開始の3時間前〜終了から90日)。署名は「イベント+個数」。
+export async function tapQr(memberId: string, eventId: string, count: number, token: string, now = Date.now()): Promise<TapOutcome> {
+  if (!validId(memberId) || !validId(eventId) || !isQrCount(count)) return { result: "invalid" };
+  const secret = formSecret();
+  if (!secret || !verifyQrToken(secret, eventId, count, token)) return { result: "bad" };
+  return db().runTransaction(async (tx): Promise<TapOutcome> => {
+    const evSnap = await tx.get(eventRef(eventId));
+    const parsed = eventSchema.safeParse(evSnap.data());
+    if (!parsed.success || parsed.data.status !== "published") return { result: "invalid" };
+    const ev = parsed.data;
+    if (!isStampSport(ev.sport)) return { result: "unsupported" };
+    const [mem, regs, card, done] = await Promise.all([
+      tx.get(db().collection("members").doc(memberId)),
+      tx.get(eventRef(eventId).collection("registrations").where("memberId", "==", memberId)),
+      tx.get(cardRef(memberId, ev.sport)),
+      tx.get(tapRef(eventId, memberId)),
+    ]);
+    if (!mem.exists) return { result: "invalid" };
+    const confirmed = regs.docs.filter((d) => d.data().status === "confirmed").sort((a, b) => (b.data().createdAt ?? 0) - (a.data().createdAt ?? 0))[0];
+    const c = cardOf(card.data());
+    const d = decideTap({ sportSupported: true, enabled: c.enabled, hasConfirmedRegistration: !!confirmed, window: tapWindow(ev, now), alreadyTapped: done.exists, points: c.points });
+    if (d.result !== "ok") return { result: d.result, sport: ev.sport, points: c.points };
+    const after = addPoints(c.points, count);
+    tx.create(tapRef(eventId, memberId), { memberId, eventId, sport: ev.sport, regId: confirmed.id, at: now, pointsBefore: c.points, pointsAfter: after, count, via: "qr" });
+    tx.update(cardRef(memberId, ev.sport), { points: after, lastTapAt: now, updatedAt: now });
+    return { result: "ok", sport: ev.sport, points: after, count };
   });
 }
 
@@ -215,6 +245,8 @@ export async function adminStampEvents(now = Date.now()): Promise<AdminStampEven
     return { id: e.id, title: e.title, sport: e.sport as StampSport, startAt: e.startAt, venue: e.venue, taps: cnt.data().count };
   }));
 }
+export type AdminQr = { eventId: string; count: 1 | 2; token: string };
+export const adminQrTokens = (eventId: string): { 1: string; 2: string } | null => { const s = formSecret(); return s ? { 1: qrToken(s, eventId, 1), 2: qrToken(s, eventId, 2) } : null; };
 export type AdminStampTag = { sport: StampSport; version: number; token: string };
 export async function adminStampTags(): Promise<AdminStampTag[]> {
   const secret = formSecret();

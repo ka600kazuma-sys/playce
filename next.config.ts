@@ -23,6 +23,11 @@ const nextConfig: NextConfig = {
         { key: "Cache-Control", value: "no-store" },
         { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
       ] },
+      { source: "/stamp/q/:eventId/:count/:token", headers: [
+        { key: "Referrer-Policy", value: "no-referrer" },
+        { key: "Cache-Control", value: "no-store" },
+        { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+      ] },
       { source: "/stamp", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       { source: "/stamp/settings", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       // 個別管理URLを Referer 経由で外部に漏らさない

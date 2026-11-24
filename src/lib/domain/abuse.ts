@@ -6,14 +6,20 @@ export function signFormToken(secret: string, now: number): string {
   return `${body}.${createHmac("sha256", secret).update(body).digest("base64url")}`;
 }
 
-export function verifyFormToken(secret: string, token: string, now: number, minMs = 3000, maxMs = 2 * 3600 * 1000): boolean {
+export type FormTokenState = "ok" | "early" | "expired" | "bad";
+// トークンの状態: 署名が正しく、入力時間が min〜max の間なら ok。早すぎ(early)と期限切れ(expired)を区別する。
+export function formTokenState(secret: string, token: string, now: number, minMs = 3000, maxMs = 2 * 3600 * 1000): FormTokenState {
   const [body, sig] = token.split(".");
-  if (!body || !sig || !/^\d{10,16}$/.test(body)) return false;
+  if (!body || !sig || !/^\d{10,16}$/.test(body)) return "bad";
   const expected = createHmac("sha256", secret).update(body).digest("base64url");
   const a = Buffer.from(sig), b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return "bad";
   const age = now - Number(body);
-  return age >= minMs && age <= maxMs;
+  if (age < minMs) return "early";
+  return age <= maxMs ? "ok" : "expired";
+}
+export function verifyFormToken(secret: string, token: string, now: number, minMs = 3000, maxMs = 2 * 3600 * 1000): boolean {
+  return formTokenState(secret, token, now, minMs, maxMs) === "ok";
 }
 
 // X-Forwarded-For から、信頼できるプロキシ段数(hops)を除いたクライアントIPを取り出す。

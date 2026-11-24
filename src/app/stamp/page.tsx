@@ -11,7 +11,7 @@ export const metadata = { title: "スタンプカード | PLAYCE", robots: { ind
 
 // メニューの「スタンプカード」。チケットだけを全画面に出す。タグをかざすと、この画面が開いてスタンプが反映される。
 // ?tap=...&sport=... は、かざした結果の「案内」と「ハンコの演出」にだけ使う。ポイントやハンコの有無は、必ずDBの値で決める。
-export default async function StampPage({ searchParams }: { searchParams: Promise<{ tap?: string; sport?: string }> }) {
+export default async function StampPage({ searchParams }: { searchParams: Promise<{ tap?: string; sport?: string; n?: string }> }) {
   const member = await getMember();
   if (!member) {
     return (
@@ -34,6 +34,8 @@ export default async function StampPage({ searchParams }: { searchParams: Promis
     return buildTicketModel(t, member.nickname, newIndex, t.event ? (links[t.event.venue] ?? null) : null);
   });
   const animateSport = tapKey === "ok" && sport && models.some((m) => m.sport === sport && m.tapped) ? sport : null;
-  const notice = tapKey && tapKey !== "ok" ? { sport, text: TAP_NOTICE[tapKey] } : null;
+  // 付け忘れの後づけ・QRで付いたスタンプは、チケットのイベントとは別の回に付くため、ハンコの演出の代わりに案内を出す(個数は表示用)。
+  const n = sp.n === "2" ? 2 : 1;
+  const notice = tapKey && tapKey !== "ok" ? { sport, text: TAP_NOTICE[tapKey] } : tapKey === "ok" && !animateSport ? { sport, text: `スタンプを${n}個、付けました` } : null;
   return <StampTickets models={models} initialSport={sport ?? models[0]?.sport ?? "badminton"} notice={notice} animateSport={animateSport} />;
 }
