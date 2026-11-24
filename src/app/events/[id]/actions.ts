@@ -43,7 +43,7 @@ export async function applyAction(eventId: string, fd: FormData) {
   // 代表者のニックネームは、フォームの値ではなく、ログイン中のメンバーのニックネームを使う(なりすまし防止)
   const parsed = registrationInputSchema.safeParse({
     nickname: member!.nickname, members: members(fd),
-    agreedRules: fd.get("agreedRules") === "on", confirmDuplicate: true,
+    confirmDuplicate: true,
   });
   if (!parsed.success) redirect(`/events/${eventId}/apply?err=${encodeURIComponent(parsed.error.issues[0].message)}`);
   const bid = await browserId();
