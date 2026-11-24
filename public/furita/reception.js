@@ -65,6 +65,9 @@
     rootEl = document.createElement('div');
     rootEl.id = 'rq';
     rootEl.className = 'rq';
+    rootEl.setAttribute('role', 'dialog');
+    rootEl.setAttribute('aria-modal', 'true');
+    rootEl.setAttribute('aria-label', '受付QR');
     rootEl.style.display = 'none';
     document.body.appendChild(rootEl);
     rootEl.addEventListener('click', function (e) {
@@ -109,8 +112,14 @@
     document.getElementById('rq-barin').style.width = Math.round((Q.secondsLeft(now, rec.offset) / 30) * 100) + '%';
     document.getElementById('rq-sec').firstChild ? (document.getElementById('rq-sec').firstChild.nodeValue = '切り替えまで ' + Q.secondsLeft(now, rec.offset) + ' 秒') : document.getElementById('rq-sec').appendChild(document.createTextNode('切り替えまで ' + Q.secondsLeft(now, rec.offset) + ' 秒'));
   }
-  R.show = function () { ensureRoot(); build(); rootEl.style.display = 'block'; shown = true; refresh(); if (!timerIv) { timerIv = setInterval(refresh, 500); } };
-  R.hide = function () { shown = false; if (rootEl) { rootEl.style.display = 'none'; rootEl.innerHTML = ''; } if (timerIv) { clearInterval(timerIv); timerIv = null; } };
+  R.show = function () {
+    var back, bg = document.getElementById('app');
+    ensureRoot(); build(); rootEl.style.display = 'block'; shown = true; refresh();
+    if (bg) { bg.setAttribute('aria-hidden', 'true'); }  /* 背面は、読み上げ・キー操作の対象から外す */
+    back = rootEl.querySelector('.rq-back'); if (back && back.focus) { back.focus(); }
+    if (!timerIv) { timerIv = setInterval(refresh, 500); }
+  };
+  R.hide = function () { var bg = document.getElementById('app'), op; shown = false; if (bg) { bg.removeAttribute('aria-hidden'); op = bg.querySelector('.rq-open'); if (op && op.focus) { op.focus(); } } if (rootEl) { rootEl.style.display = 'none'; rootEl.innerHTML = ''; } if (timerIv) { clearInterval(timerIv); timerIv = null; } };
   R.isShown = function () { return shown; };
   R.timerText = null; /* app.js が設定(QR表示中も、動いているタイマーの残り時間を見えるように) */
   R.dateText = dateText;

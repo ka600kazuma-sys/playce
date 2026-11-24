@@ -32,6 +32,7 @@ function Ticket({ m, notice, animate }: { m: TicketModel; notice: Notice | null;
             <div>
               <div className="st-none">参加予定なし</div>
               <div className="st-next">この競技の、参加確定の申込がありません</div>
+              {m.enabled && <div className="st-next">{m.nextText}</div>}
             </div>
           )}
           <dl className="st-info">

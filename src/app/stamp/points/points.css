@@ -15,7 +15,7 @@
 .pt-points b { font-size: 56px; line-height: 1; color: var(--ink); }
 .pt-points span { font-size: 16px; color: #5b6680; }
 .pt-slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 12px; border-radius: 8px; background: var(--soft); }
-.pt-slot { width: 100%; padding-top: 100%; position: relative; border-radius: 50%; border: 1.5px dashed #aab5cd; background: #fff; color: #8591ab; }
+.pt-slot { width: 100%; padding-top: 100%; position: relative; border-radius: 50%; border: 1.5px dashed #8d99b3; background: #fff; color: #4a5671; }
 .pt-slot > * { position: absolute; left: 0; right: 0; text-align: center; line-height: 1.1; }
 .pt-slot .n { top: 30%; font-weight: 700; font-size: 17px; }
 .pt-slot .t { top: 60%; font-size: 10px; letter-spacing: .02em; }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getMember } from "@/lib/auth/member";
 import { getMyPoints, type MyCoupon } from "@/lib/repo/stamps";
 import { STAMP_SPORTS, STAMP_SPORT_LABEL, CYCLE } from "@/lib/domain/stamps";
@@ -16,19 +17,14 @@ const couponName = (c: MyCoupon) => (c.kind === "free" ? "参加費1回無料" :
 // ポイント画面: 既存のスタンプチケットの見た目(紙のチケット・5つのスタンプ)を引き継ぎ、周回・次の特典・クーポンを見せる。本人の分だけ。
 export default async function PointsPage() {
   const member = await getMember();
-  if (!member) {
-    return (
-      <main className="mx-auto max-w-md space-y-4 py-8 text-center">
-        <h1 className="font-serif text-xl font-medium text-navy">ポイント・クーポン</h1>
-        <p className="text-sm text-soft">ご利用には、ログインが必要です。</p>
-        <Link href="/login?next=%2Fstamp%2Fpoints" className="block rounded-2xl bg-navy-deep p-3 font-semibold text-white">ログイン / 新規登録</Link>
-      </main>
-    );
-  }
+  if (!member) redirect("/login?next=%2Fstamp%2Fpoints");
   const my = await getMyPoints(member.id).catch(() => null);
   if (!my) return <main className="p-4 text-center text-sm">読み込めませんでした。時間をおいて、もう一度お試しください。</main>;
-  const active = my.coupons.filter((c) => c.status === "active");
-  const past = my.coupons.filter((c) => c.status !== "active");
+  const now = Date.now(), jstDay = (ms: number) => Math.floor((ms + 9 * 3600e3) / 864e5);
+  const expired = (c: MyCoupon) => c.status === "active" && c.expiresAt !== null && c.expiresAt < now;
+  const active = my.coupons.filter((c) => c.status === "active" && !expired(c));
+  const past = my.coupons.filter((c) => c.status !== "active" || expired(c));
+  const laterOnly = (c: MyCoupon) => !my.sameDay && jstDay(c.issuedAt) === jstDay(now); // 発行された日には使えない設定のとき
   return (
     <main className="pt-page">
       <div className="pt-top"><h1>ポイント・クーポン</h1><Link href="/stamp" className="pt-link">スタンプカードへ</Link></div>
@@ -61,12 +57,12 @@ export default async function PointsPage() {
         <ul>{active.map((c) => (
           <li key={c.id} className={`pt-coupon ${c.kind}`}>
             <b>{couponName(c)}</b><span>{STAMP_SPORT_LABEL[c.sport]} ・ {c.lap > 0 ? `${c.lap}周目 ${c.threshold}ポイント到達` : "主催者から"}</span>
-            <small>{c.expiresAt ? `有効期限 ${dateText(new Date(c.expiresAt).toISOString())}` : "有効期限なし"}</small>
+            <small>{c.expiresAt ? `有効期限 ${dateText(new Date(c.expiresAt).toISOString())}` : "有効期限なし"}{laterOnly(c) ? " ・ 発行された日は使えません。次回の参加から使えます" : ""}</small>
           </li>))}</ul>
-        <p className="pt-hint">使うときは、受付で主催者に「クーポンを使う」とお伝えください。参加費から引かれます(1回の参加で1枚)。</p>
+        <p className="pt-hint">使うときは、受付で主催者に「クーポンを使う」とお伝えください。参加費から引かれます(1回の参加で1枚)。発行された日は使えない場合があります。</p>
         {past.length > 0 && (
-          <details className="pt-past"><summary>使用済み・取り消し済み({past.length})</summary>
-            <ul>{past.map((c) => <li key={c.id}>{couponName(c)} ・ {STAMP_SPORT_LABEL[c.sport]} ・ {c.status === "used" ? `使用済み${c.usedAt ? `(${dateText(new Date(c.usedAt).toISOString())})` : ""}` : "取り消し済み"}</li>)}</ul>
+          <details className="pt-past"><summary>使用済み・取り消し・期限切れ({past.length})</summary>
+            <ul>{past.map((c) => <li key={c.id}>{couponName(c)} ・ {STAMP_SPORT_LABEL[c.sport]} ・ {c.status === "used" ? `使用済み${c.usedAt ? `(${dateText(new Date(c.usedAt).toISOString())})` : ""}` : c.status === "cancelled" ? "取り消し済み" : "期限切れ"}</li>)}</ul>
           </details>
         )}
       </section>

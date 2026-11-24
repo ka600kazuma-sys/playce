@@ -121,7 +121,8 @@ test("チケット: 偶数周は特典が変わり(3pt=200円引き・5pt=無料
 });
 test("チケット: 参加予定なしのときは、開催情報・料金を出さない。同行者は「ほか○名」", () => {
   const none = buildTicketModel({ ...T, event: null, feeYen: 0 }, "たろう");
-  assert.deepEqual([none.hasEvent, none.priceYen, none.discountYen, none.participant, none.nextText], [false, 0, 0, "", ""]);
+  assert.deepEqual([none.hasEvent, none.priceYen, none.discountYen, none.participant], [false, 0, 0, ""]);
+  assert.equal(none.nextText, "1周目 ― 3ポイントで100円引き(あと1ポイント)", "参加予定がなくても、次の特典は出る");
   assert.equal(buildTicketModel({ ...T, partySize: 3 }, "たろう").participant, "たろう ほか2名");
 });
 test("かざした結果の案内文が、すべての結果に用意されている", () => {

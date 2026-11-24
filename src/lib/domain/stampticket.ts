@@ -32,7 +32,7 @@ export function buildTicketModel(t: TicketInput, nickname: string, newIndex = 0,
   const phase = t.tapped ? "next" : "today";
   const par = lapParity(t.lap), rw = t.rewards[par];
   const toNext = pointsToNextReward({ lap: t.lap, points: t.points }), nextPt = t.points < 3 ? 3 : 5;
-  const nextText = !t.event ? "" : `${t.lap}周目 ― ${nextPt}ポイントで${rewardText(rw[nextPt as 3 | 5])}(あと${toNext}ポイント)`;
+  const nextText = `${t.lap}周目 ― ${nextPt}ポイントで${rewardText(rw[nextPt as 3 | 5])}(あと${toNext}ポイント)`; // 参加予定の有無にかかわらず、カードの状態から出す
   const slots: Slot[] = Array.from({ length: CYCLE }, (_, i) => {
     const n = i + 1, on = n <= t.points, tier = n === 3 || n === 5;
     return { n, on, tier: tier && !on, label: on ? `${n}pt` : tier ? rewardShort(rw[n as 3 | 5]) : "通常", isNew: newIndex === n && on };

@@ -290,7 +290,7 @@ export async function getTickets(memberId: string, now = Date.now()): Promise<Ti
     const tapDoc = (await tapRef(e.id, memberId).get()).data();
     return {
       ...base, event: { id: e.id, title: e.title, startAt: e.startAt, endAt: e.endAt, venue: e.venue },
-      feeYen: (Number.isInteger(d.baseFeeYen) ? d.baseFeeYen : d.feeYen) as number, partySize: d.partySize as number, tapped: !!tapDoc,
+      feeYen: d.feeYen as number, // 実際の請求額(クーポン適用後は、引かれた額) partySize: d.partySize as number, tapped: !!tapDoc,
       tapPoints: Number.isInteger(tapDoc?.pointsAfter) ? (tapDoc!.pointsAfter as number) : null,
     };
   }));
@@ -375,7 +375,7 @@ export async function settleEventStamps(eventId: string, now = Date.now()): Prom
 
 // ---- 自分のポイント画面用(本人の分だけ。会員IDは、必ずログインのセッションから渡す) ----
 export type MyCoupon = { id: string; sport: StampSport; kind: "discount" | "free"; yen: number; lap: number; threshold: number; issuedAt: number; status: "active" | "used" | "cancelled"; usedAt: number | null; expiresAt: number | null; reason: string };
-export type MyPoints = { cards: Record<StampSport, Card & { visits: number }>; rewards: LapRewards; coupons: MyCoupon[] };
+export type MyPoints = { cards: Record<StampSport, Card & { visits: number }>; rewards: LapRewards; coupons: MyCoupon[]; sameDay: boolean };
 export async function getMyPoints(memberId: string): Promise<MyPoints | null> {
   if (!validId(memberId)) return null;
   const [snaps, cfg, cps] = await Promise.all([
@@ -390,7 +390,7 @@ export async function getMyPoints(memberId: string): Promise<MyPoints | null> {
     const x = d.data();
     return { id: d.id, sport: x.sport, kind: x.kind === "free" ? "free" : "discount", yen: x.yen ?? 0, lap: x.lap ?? 0, threshold: x.threshold ?? 0, issuedAt: x.issuedAt ?? 0, status: x.status === "used" || x.status === "cancelled" ? x.status : "active", usedAt: x.usedAt ?? null, expiresAt: x.expiresAt ?? null, reason: x.reason ?? "" };
   }).filter((c) => isStampSport(c.sport)).sort((a, b) => b.issuedAt - a.issuedAt);
-  return { cards, rewards, coupons };
+  return { cards, rewards, coupons, sameDay: policyFromSnap(cfg).sameDay };
 }
 
 export async function getRewards(): Promise<LapRewards> {

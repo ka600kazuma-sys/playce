@@ -617,7 +617,7 @@
   document.addEventListener('touchmove', function (e) {
     var el = e.target;
     while (el && el !== document.body) {
-      if (el.className && /(^| )(full|match)( |$)/.test(el.className)) { return; }
+      if (el.className && /(^| )(full|match|rq-body)( |$)/.test(el.className)) { return; }
       el = el.parentNode;
     }
     e.preventDefault();
