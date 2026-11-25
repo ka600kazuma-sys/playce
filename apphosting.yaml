@@ -3,7 +3,7 @@
 runConfig:
   cpu: 1
   memoryMiB: 512
-  minInstances: 0
+  minInstances: 1  # 起動待ち(約4秒)の対策。月約10ドル。戻すときは 0 にして再ロールアウト(2026-11-25 ユーザー承認・試行)
   maxInstances: 3
   concurrency: 80
 
