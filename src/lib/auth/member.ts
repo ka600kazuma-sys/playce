@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getMemberBySession, MEMBER_SESSION_MS, type MemberView } from "@/lib/repo/members";
@@ -12,6 +13,9 @@ export async function getMember(): Promise<MemberView | null> {
   if (!value) return null;
   try { return await getMemberBySession(value); } catch { return null; }
 }
+
+// 画面の描画用(同じリクエスト内で layout と page が両方呼んでも、読み取りは1回だけ)。操作(Server Action)の認可には、従来どおり getMember を使う。
+export const getMemberForRender = cache(getMember);
 
 // ログインが必要な画面・操作の入口。未ログインなら、ログイン後に元の画面へ戻れるよう next を付けて、ログイン画面へ移す。
 export async function requireMember(next: string): Promise<MemberView> {

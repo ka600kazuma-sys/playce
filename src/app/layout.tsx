@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { getAdmin } from "@/lib/auth/session";
-import { getMember } from "@/lib/auth/member";
+import { getMemberForRender } from "@/lib/auth/member";
 import { SiteShell } from "@/components/SiteShell";
 
 const geistSans = Geist({
@@ -24,8 +24,11 @@ export const viewport = { width: "device-width", initialScale: 1, viewportFit: "
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // メニューの出し分け用。保護はサーバー側(requireAdmin)が行う。確認できなければ参加者として扱う。
-  const isAdmin = await getAdmin().then((a) => !!a, () => false);
-  const memberNickname = await getMember().then((m) => m?.nickname ?? null, () => null);
+  // 2つの確認は互いに独立なので、同時に行う(待ち時間を足し算にしない)。
+  const [isAdmin, memberNickname] = await Promise.all([
+    getAdmin().then((a) => !!a, () => false),
+    getMemberForRender().then((m) => m?.nickname ?? null, () => null),
+  ]);
   return (
     <html
       lang="ja"
